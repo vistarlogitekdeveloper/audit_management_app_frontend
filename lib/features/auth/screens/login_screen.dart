@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -280,6 +281,8 @@ class _LoginFormPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
+            // REMOVE BEFORE FINAL PRODUCTION DEPLOYMENT
+            const _TestSmtpButton(),
           ],
         ),
       ),
@@ -364,6 +367,71 @@ class _RoleSelector extends StatelessWidget {
       AppConstants.roleClusterManager => 'Cluster',
       _ => role,
     };
+  }
+}
+
+// REMOVE BEFORE FINAL PRODUCTION DEPLOYMENT
+class _TestSmtpButton extends StatefulWidget {
+  const _TestSmtpButton();
+
+  @override
+  State<_TestSmtpButton> createState() => _TestSmtpButtonState();
+}
+
+class _TestSmtpButtonState extends State<_TestSmtpButton> {
+  bool _loading = false;
+
+  Future<void> _sendTest() async {
+    setState(() => _loading = true);
+    try {
+      final dio = Dio(BaseOptions(
+        baseUrl: 'https://audit-management-app-backend.onrender.com',
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 20),
+      ));
+      final resp = await dio.get('/api/test-smtp');
+      final data = resp.data is Map ? resp.data as Map : <String, dynamic>{};
+      final ok = data['data']?['ok'] == true;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ok
+            ? 'Test email sent to Flutter.developer@vistarlogitek.com'
+            : 'SMTP failed: ${data['data']?['error'] ?? 'unknown error'}'),
+        backgroundColor: ok ? AppColors.secondary : AppColors.danger,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Request failed: $e'),
+        backgroundColor: AppColors.danger,
+      ));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _loading ? null : _sendTest,
+      icon: _loading
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.email_outlined, size: 16),
+      label: Text(
+        _loading ? 'Sending…' : '[DEV] Test SMTP email',
+        style: AppTextStyles.medium13,
+      ),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 40),
+        foregroundColor: AppColors.textSecondary,
+        side: BorderSide(color: AppColors.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
   }
 }
 
