@@ -1,34 +1,34 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../data/dashboard_repository.dart';
-import '../../../core/db/app_database.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-part 'dashboard_provider.g.dart';
+import '../../../core/services/api_service.dart';
+import '../models/auditor_owner_dashboard_model.dart';
+import '../models/dashboard_model.dart';
+import '../services/dashboard_service.dart';
 
-@riverpod
-Future<Map<String, dynamic>> dashboardSummary(DashboardSummaryRef ref) async {
-  final repository = ref.watch(dashboardRepositoryProvider);
-  return await repository.fetchSummary();
-}
+final dashboardServiceProvider = Provider<DashboardService>(
+  (ref) => DashboardService(ref.watch(apiServiceProvider)),
+);
 
-@riverpod
-Future<int> pendingSyncCount(PendingSyncCountRef ref) async {
-  final db = ref.watch(appDatabaseProvider);
-  
-  // Pending Audit Responses
-  final pendingResponses = await (db.select(db.auditResponses)
-        ..where((t) => t.isSynced.equals(false)))
-      .get();
-      
-  // Pending Action Plans
-  final pendingActionPlans = await (db.select(db.actionPlans)
-        ..where((t) => t.isSynced.equals(false)))
-      .get();
+final adminDashboardProvider =
+    FutureProvider<AdminDashboardModel>((ref) async {
+  final service = ref.watch(dashboardServiceProvider);
+  return service.getAdminDashboard();
+});
 
-  return pendingResponses.length + pendingActionPlans.length;
-}
+final auditorDashboardProvider =
+    FutureProvider<AuditorDashboardModel>((ref) async {
+  final service = ref.watch(dashboardServiceProvider);
+  return service.getAuditorDashboard();
+});
 
-@riverpod
-Future<Map<String, dynamic>> auditStats(AuditStatsRef ref) async {
-  final repository = ref.watch(dashboardRepositoryProvider);
-  return await repository.fetchAuditStats();
-}
+final ownerDashboardProvider =
+    FutureProvider<OwnerDashboardModel>((ref) async {
+  final service = ref.watch(dashboardServiceProvider);
+  return service.getOwnerDashboard();
+});
+
+final clusterDashboardProvider =
+    FutureProvider<OwnerDashboardModel>((ref) async {
+  final service = ref.watch(dashboardServiceProvider);
+  return service.getClusterDashboard();
+});

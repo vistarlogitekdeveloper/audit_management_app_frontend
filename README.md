@@ -1,4 +1,4 @@
-# audit_management_app
+# audit_management_app_frontend
 
 A new Flutter project.
 

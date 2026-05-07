@@ -1,54 +1,28 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'core/sync/workmanager_setup.dart';
-import 'routes/router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() async {
+import 'app.dart';
+import 'core/services/api_service.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Register Workmanager for background sync
-  await WorkmanagerSetup.initialize();
-  WorkmanagerSetup.registerPeriodicSync();
+
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // The app still runs when Firebase config is added later.
+  }
+
+  final preferences = await SharedPreferences.getInstance();
 
   runApp(
-    const ProviderScope(
-      child: AuditApp(),
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+      ],
+      child: const VistarAuditApp(),
     ),
   );
-}
-
-class AuditApp extends ConsumerWidget {
-  const AuditApp({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(appRouterProvider);
-
-    return MaterialApp.router(
-      title: 'Audit Management App',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E3A8A), // Enterprise blue
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-          filled: true,
-        ),
-        cardTheme: const CardThemeData(
-          elevation: 2,
-        ),
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E3A8A),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
-      themeMode: ThemeMode.system,
-      routerConfig: router,
-    );
-  }
 }

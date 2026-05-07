@@ -1,6 +1,6 @@
 {
-    "name": "audit_management_app",
-    "short_name": "audit_management_app",
+    "name": "audit_management_app_frontend",
+    "short_name": "audit_management_app_frontend",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -1,0 +1,61 @@
+import '../../../core/utils/helpers.dart';
+
+class ActionPlanSummary {
+  const ActionPlanSummary({
+    required this.id,
+    required this.auditSheetId,
+    required this.auditPlanId,
+    required this.projectName,
+    required this.projectLocation,
+    required this.auditDate,
+    required this.dueDate,
+    required this.status,
+    required this.itemsTotal,
+    required this.itemsOpen,
+    required this.itemsInProgress,
+    required this.itemsClosed,
+    required this.daysRemaining,
+    this.auditorName = '',
+  });
+
+  final String id;
+  final String auditSheetId;
+  final String auditPlanId;
+  final String projectName;
+  final String projectLocation;
+  final DateTime auditDate;
+  final DateTime dueDate;
+  final String status;
+  final int itemsTotal;
+  final int itemsOpen;
+  final int itemsInProgress;
+  final int itemsClosed;
+  final int daysRemaining;
+  final String auditorName;
+
+  bool get isOverdue => status == 'overdue' || daysRemaining < 0;
+  bool get isClosed => status == 'closed' || itemsTotal > 0 && itemsClosed == itemsTotal;
+
+  factory ActionPlanSummary.fromJson(Map<String, dynamic> json) {
+    final project = json['project'] as Map<String, dynamic>?;
+    final auditor = json['auditor'] as Map<String, dynamic>?;
+    return ActionPlanSummary(
+      id: json['id']?.toString() ?? '',
+      auditSheetId: json['audit_sheet_id']?.toString() ?? '',
+      auditPlanId: json['audit_plan_id']?.toString() ?? '',
+      projectName: project?['name']?.toString() ?? '',
+      projectLocation: project?['location']?.toString() ?? '',
+      auditDate: DateTime.tryParse(json['audit_date']?.toString() ?? '') ??
+          DateTime.now(),
+      dueDate: DateTime.tryParse(json['due_date']?.toString() ?? '') ??
+          DateTime.now(),
+      status: json['status']?.toString() ?? 'pending',
+      itemsTotal: AppHelpers.parseInt(json['items_total']),
+      itemsOpen: AppHelpers.parseInt(json['items_open']),
+      itemsInProgress: AppHelpers.parseInt(json['items_in_progress']),
+      itemsClosed: AppHelpers.parseInt(json['items_closed']),
+      daysRemaining: AppHelpers.parseInt(json['daysRemaining']),
+      auditorName: auditor?['name']?.toString() ?? '',
+    );
+  }
+}

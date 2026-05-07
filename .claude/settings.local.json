@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"D:/FlutterFolder/AUDIT/audit_management_app_backend\")",
+      "Read(//d/FlutterFolder/AUDIT/audit_management_app_backend/**)",
+      "Bash(flutter analyze *)",
+      "PowerShell(head -40)"
+    ]
+  }
+}
