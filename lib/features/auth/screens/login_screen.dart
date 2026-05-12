@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -385,11 +386,11 @@ class _TestSmtpButtonState extends State<_TestSmtpButton> {
     setState(() => _loading = true);
     try {
       final dio = Dio(BaseOptions(
-        baseUrl: 'https://audit-management-app-backend.onrender.com',
+        baseUrl: ApiConstants.baseUrl,
         connectTimeout: const Duration(seconds: 20),
         receiveTimeout: const Duration(seconds: 20),
       ));
-      final resp = await dio.get('/api/test-smtp');
+      final resp = await dio.get('/test-smtp');
       final data = resp.data is Map ? resp.data as Map : <String, dynamic>{};
       final ok = data['data']?['ok'] == true;
       if (!mounted) return;
@@ -428,7 +429,7 @@ class _TestSmtpButtonState extends State<_TestSmtpButton> {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(double.infinity, 40),
         foregroundColor: AppColors.textSecondary,
-        side: BorderSide(color: AppColors.border),
+        side: const BorderSide(color: AppColors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
