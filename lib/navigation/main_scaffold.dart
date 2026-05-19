@@ -123,10 +123,13 @@ class MainScaffold extends ConsumerWidget {
           _NavItem('Reports', '/cluster/reports', Icons.bar_chart_outlined),
         ];
       default:
+        // No owner-scoped reports screen exists; the old '/report/admin'
+        // entry routed to ReportScreen(auditId:'admin') and 404'd. Removed
+        // until an owner reports view is built (pointing it at the admin
+        // reports screen would expose cross-project data).
         return const [
           _NavItem('My Reviews', '/owner/dashboard', Icons.grid_view_rounded),
           _NavItem('Action Plans', '/owner/action-plans', Icons.checklist_rounded),
-          _NavItem('Reports', '/report/admin', Icons.bar_chart_outlined),
         ];
     }
   }

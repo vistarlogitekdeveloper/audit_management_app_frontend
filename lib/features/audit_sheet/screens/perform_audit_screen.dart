@@ -54,9 +54,21 @@ class _PerformAuditScreenState extends ConsumerState<PerformAuditScreen> {
           }
         }
 
-        // Ensure the selected ID is still valid, else reset
-        if (_selectedAuditId != null && !activeAudits.any((a) => a.id == _selectedAuditId)) {
-          _selectedAuditId = null;
+        // Ensure the selected ID is still valid. The dropdown
+        // (DropdownButtonFormField) asserts if its value isn't among the
+        // items, so use a validated local value for this build instead of
+        // mutating state during build(); persist the reset after the frame.
+        final selectedAuditId =
+            activeAudits.any((a) => a.id == _selectedAuditId)
+                ? _selectedAuditId
+                : null;
+        if (selectedAuditId != _selectedAuditId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted &&
+                !activeAudits.any((a) => a.id == _selectedAuditId)) {
+              setState(() => _selectedAuditId = null);
+            }
+          });
         }
 
         return Container(
@@ -114,7 +126,7 @@ class _PerformAuditScreenState extends ConsumerState<PerformAuditScreen> {
                     else ...[
                       AppDropdown<String>(
                         label: 'Scheduled Audit',
-                        value: _selectedAuditId,
+                        value: selectedAuditId,
                         items: activeAudits.map((audit) {
                           final dateStr = AppDateUtils.formatDisplay(audit.date);
                           return DropdownMenuItem(
@@ -131,10 +143,10 @@ class _PerformAuditScreenState extends ConsumerState<PerformAuditScreen> {
                           AppButton(
                             label: 'Start Audit',
                             icon: Icons.play_arrow_rounded,
-                            onPressed: _selectedAuditId == null
+                            onPressed: selectedAuditId == null
                                 ? null
                                 : () {
-                                    context.go('/auditor/audit/$_selectedAuditId');
+                                    context.go('/auditor/audit/$selectedAuditId');
                                   },
                           ),
                         ],

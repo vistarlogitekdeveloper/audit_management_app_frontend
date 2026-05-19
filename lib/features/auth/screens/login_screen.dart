@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -281,9 +282,12 @@ class _LoginFormPanel extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 14),
-            // REMOVE BEFORE FINAL PRODUCTION DEPLOYMENT
-            const _TestSmtpButton(),
+            // Dev-only SMTP probe — compiled out of release/profile builds
+            // so production users can never trigger backend test emails.
+            if (kDebugMode) ...[
+              const SizedBox(height: 14),
+              const _TestSmtpButton(),
+            ],
           ],
         ),
       ),

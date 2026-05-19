@@ -24,7 +24,19 @@ class ReportService {
     }
     final directory = await getTemporaryDirectory();
     final path = '${directory.path}/audit_report_$auditId.pdf';
-    await Dio().download(url, path);
+
+    final isExternal = (url.startsWith('http://') ||
+            url.startsWith('https://')) &&
+        !url.startsWith(ApiConstants.baseUrl);
+    if (isExternal) {
+      // A pre-signed storage URL (e.g. S3) — must NOT carry our API auth
+      // header, and it already includes its own credentials.
+      await Dio().download(url, path);
+    } else {
+      // Backend-hosted (relative or same-origin) — needs the base URL and
+      // the Authorization header from the shared client.
+      await _apiService.dio.download(url, path);
+    }
     return path;
   }
 }

@@ -1,6 +1,7 @@
 import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/utils/helpers.dart';
 import '../models/user_model.dart';
 
 class AuthService {
@@ -26,7 +27,8 @@ class AuthService {
     final data = _apiService.extractObject(response);
     final token = data['accessToken']?.toString() ?? '';
     final refreshToken = data['refreshToken']?.toString() ?? '';
-    final userJson = data['user'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final userJson =
+        AppHelpers.asStringMap(data['user']) ?? <String, dynamic>{};
     final responseUser = UserModel.fromJson(userJson);
     final normalizedRole = AppConstants.normalizeRole(
       responseUser.role.isEmpty ? role : responseUser.role,
