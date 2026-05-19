@@ -284,7 +284,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (ctx, setStateDialog) => AlertDialog(
-          title: const Text('Change password'),
+          title: Row(
+            children: [
+              const Expanded(child: Text('Change password')),
+              IconButton(
+                tooltip: 'Close',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: const Icon(Icons.close_rounded, size: 20),
+                color: AppColors.textSecondary,
+                onPressed: submitting
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(false),
+              ),
+            ],
+          ),
           content: Form(
             key: formKey,
             child: Column(

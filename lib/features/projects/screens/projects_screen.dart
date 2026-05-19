@@ -208,6 +208,7 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
     final clusters = auditPlan.clusterManagers;
     await showModalBottomSheet<void>(
       context: context,
+      showDragHandle: true,
       isScrollControlled: true,
       backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(

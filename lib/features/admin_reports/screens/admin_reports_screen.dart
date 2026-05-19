@@ -443,6 +443,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
   Future<void> _pickProject(List<ProjectLookupModel> projects) async {
     final selected = await showModalBottomSheet<String>(
       context: context,
+      showDragHandle: true,
       builder: (ctx) => _PickerSheet(
         title: 'Select project',
         items: projects.map((p) => (p.id, p.name)).toList(),
@@ -459,6 +460,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
   Future<void> _pickCluster(List<UserLookupModel> clusters) async {
     final selected = await showModalBottomSheet<String>(
       context: context,
+      showDragHandle: true,
       builder: (ctx) => _PickerSheet(
         title: 'Select cluster manager',
         items: clusters.map((c) => (c.id, c.name)).toList(),

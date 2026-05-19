@@ -160,6 +160,7 @@ class _AuditHistoryScreenState extends ConsumerState<AuditHistoryScreen> {
       ..sort();
     final result = await showModalBottomSheet<_FilterResult>(
       context: context,
+      showDragHandle: true,
       isScrollControlled: true,
       backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(

@@ -9,6 +9,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_dialog.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../../core/services/image_service.dart';
@@ -74,56 +75,20 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
   Future<void> _showSubmitSuccessDialog(BuildContext context) async {
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
-      builder:
-          (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: AppColors.secondary,
-                    size: 42,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Audit Submitted Successfully!',
-                  style: AppTextStyles.headline22,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Your audit findings have been recorded. The project owner will be notified for acknowledgment.',
-                  style: AppTextStyles.body14.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 28),
-                SizedBox(
-                  width: double.infinity,
-                  child: AppButton(
-                    label: 'Return to Dashboard',
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                    },
-                  ),
-                ),
-              ],
-            ),
+      builder: (ctx) => AppDialog(
+        icon: Icons.check_circle_rounded,
+        iconColor: AppColors.secondary,
+        title: 'Audit Submitted Successfully!',
+        message:
+            'Your audit findings have been recorded. The project owner will be notified for acknowledgment.',
+        actions: SizedBox(
+          width: double.infinity,
+          child: AppButton(
+            label: 'Return to Dashboard',
+            onPressed: () => Navigator.of(ctx).pop(),
           ),
+        ),
+      ),
     );
   }
 

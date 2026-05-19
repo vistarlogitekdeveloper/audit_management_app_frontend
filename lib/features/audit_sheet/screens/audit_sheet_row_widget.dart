@@ -98,6 +98,7 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
                   onPressed: () async {
                     final source = await showModalBottomSheet<ImageSourceType>(
                       context: context,
+                      showDragHandle: true,
                       builder: (context) => SafeArea(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,

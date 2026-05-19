@@ -96,7 +96,20 @@ class AppHelpers {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title),
+        title: Row(
+          children: [
+            Expanded(child: Text(title)),
+            IconButton(
+              tooltip: 'Close',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: const Icon(Icons.close_rounded, size: 20),
+              color: AppColors.textSecondary,
+              // Dismissing a confirmation == cancel.
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+          ],
+        ),
         content: Text(message),
         // The global filledButtonTheme forces full-width buttons
         // (Size.fromHeight = infinite width), which makes the default

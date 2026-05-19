@@ -244,6 +244,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
   Future<void> _showUserSheet(BuildContext context, {UserModel? user}) async {
     await showModalBottomSheet<void>(
       context: context,
+      showDragHandle: true,
       isScrollControlled: true,
       backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(
