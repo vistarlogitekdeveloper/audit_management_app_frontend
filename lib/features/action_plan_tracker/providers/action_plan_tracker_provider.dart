@@ -25,7 +25,12 @@ class ActionPlanTrackerProvider extends ChangeNotifier {
   bool isLoading = false;
   String? error;
 
+  /// Monotonic request id — see [UserProvider.fetchUsers]. Guards against a
+  /// slow earlier fetch overwriting the result of a newer filter selection.
+  int _fetchSeq = 0;
+
   Future<void> fetch() async {
+    final seq = ++_fetchSeq;
     isLoading = true;
     error = null;
     notifyListeners();
@@ -36,12 +41,17 @@ class ActionPlanTrackerProvider extends ChangeNotifier {
           (filter == 'pending' || filter == 'submitted' || filter == 'overdue')
               ? filter
               : null;
-      plans = await _service.list(status: passToBackend);
+      final result = await _service.list(status: passToBackend);
+      if (seq != _fetchSeq) return;
+      plans = result;
     } catch (e) {
+      if (seq != _fetchSeq) return;
       error = e.toString();
     } finally {
-      isLoading = false;
-      notifyListeners();
+      if (seq == _fetchSeq) {
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
 

@@ -8,22 +8,26 @@ import '../constants/app_constants.dart';
 class ImageService {
   Future<String> compressToMax500Kb(String path) async {
     final dir = await getTemporaryDirectory();
-    final targetPath =
-        '${dir.path}/audit_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final stamp = DateTime.now().millisecondsSinceEpoch;
 
-    int quality = 90;
     XFile? compressed;
-
-    do {
-      compressed = await FlutterImageCompress.compressAndGetFile(
+    for (int quality = 90; quality >= 30; quality -= 10) {
+      // flutter_image_compress will not overwrite an existing destination
+      // file (it returns null), so every attempt must use a distinct path —
+      // otherwise the loop silently stops after the first pass and oversized
+      // images get uploaded unchanged.
+      final targetPath = '${dir.path}/audit_${stamp}_q$quality.jpg';
+      final result = await FlutterImageCompress.compressAndGetFile(
         path,
         targetPath,
         quality: quality,
       );
-      quality -= 10;
-    } while (compressed != null &&
-        File(compressed.path).lengthSync() > AppConstants.maxImageSizeBytes &&
-        quality >= 30);
+      if (result == null) break;
+      compressed = result;
+      if (File(result.path).lengthSync() <= AppConstants.maxImageSizeBytes) {
+        break;
+      }
+    }
 
     return compressed?.path ?? path;
   }

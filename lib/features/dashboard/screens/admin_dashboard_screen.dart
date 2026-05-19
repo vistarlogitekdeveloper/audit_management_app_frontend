@@ -312,8 +312,16 @@ class _MetricCard extends StatelessWidget {
                 ),
                 child: Icon(icon, color: color, size: 20),
               ),
-              const Spacer(),
-              Text(helper, style: AppTextStyles.body11),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  helper,
+                  style: AppTextStyles.body11,
+                  textAlign: TextAlign.end,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           Column(
@@ -343,6 +351,7 @@ class _UpcomingPanel extends ConsumerStatefulWidget {
 class _UpcomingPanelState extends ConsumerState<_UpcomingPanel> {
   final _formKey = GlobalKey<FormState>();
   final _reasonController = TextEditingController();
+  final _dateController = TextEditingController();
   UpcomingAudit? _selectedAudit;
   DateTime? _newDate;
   bool _showReschedule = false;
@@ -350,6 +359,7 @@ class _UpcomingPanelState extends ConsumerState<_UpcomingPanel> {
   @override
   void dispose() {
     _reasonController.dispose();
+    _dateController.dispose();
     super.dispose();
   }
 
@@ -364,6 +374,7 @@ class _UpcomingPanelState extends ConsumerState<_UpcomingPanel> {
       _selectedAudit = null;
       _newDate = null;
       _reasonController.clear();
+      _dateController.clear();
     }
   }
 
@@ -421,11 +432,15 @@ class _UpcomingPanelState extends ConsumerState<_UpcomingPanel> {
                 selectedAudit: _selectedAudit,
                 selectedDate: _newDate,
                 reasonController: _reasonController,
+                dateController: _dateController,
                 isLoading: provider.isLoading,
                 projectLabel: (audit) => _projectFor(audit).name,
                 onAuditChanged:
                     (audit) => setState(() => _selectedAudit = audit),
-                onDateSelected: (date) => setState(() => _newDate = date),
+                onDateSelected: (date) => setState(() {
+                  _newDate = date;
+                  _dateController.text = AppHelpers.formatDate(date);
+                }),
                 onSubmit: () => _submitReschedule(provider),
               ),
             ),
@@ -462,6 +477,7 @@ class _UpcomingPanelState extends ConsumerState<_UpcomingPanel> {
         _selectedAudit = null;
         _newDate = null;
         _reasonController.clear();
+        _dateController.clear();
       });
       messenger.showSnackBar(
         const SnackBar(content: Text('Reschedule notification sent.')),
@@ -480,6 +496,7 @@ class _RescheduleAuditForm extends StatelessWidget {
     required this.selectedAudit,
     required this.selectedDate,
     required this.reasonController,
+    required this.dateController,
     required this.isLoading,
     required this.projectLabel,
     required this.onAuditChanged,
@@ -492,6 +509,7 @@ class _RescheduleAuditForm extends StatelessWidget {
   final UpcomingAudit? selectedAudit;
   final DateTime? selectedDate;
   final TextEditingController reasonController;
+  final TextEditingController dateController;
   final bool isLoading;
   final String Function(UpcomingAudit audit) projectLabel;
   final ValueChanged<UpcomingAudit?> onAuditChanged;
@@ -533,12 +551,7 @@ class _RescheduleAuditForm extends StatelessWidget {
             const SizedBox(height: 14),
             AppInput(
               label: 'New date',
-              controller: TextEditingController(
-                text:
-                    selectedDate == null
-                        ? ''
-                        : AppHelpers.formatDate(selectedDate!),
-              ),
+              controller: dateController,
               isReadOnly: true,
               validator: (_) => Validators.validateFutureDate(selectedDate),
               suffixIcon: const Icon(Icons.calendar_today_outlined),
@@ -663,8 +676,15 @@ class _Panel extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: AppColors.primary),
               const SizedBox(width: 8),
-              Text(title, style: AppTextStyles.title16),
-              if (action != null) ...[const Spacer(), action!],
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTextStyles.title16,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (action != null) ...[const SizedBox(width: 8), action!],
             ],
           ),
           const SizedBox(height: 14),

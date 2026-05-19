@@ -21,15 +21,21 @@ class NotificationProvider extends ChangeNotifier {
   List<NotificationModel> notifications = [];
   bool isLoading = false;
 
+  /// Set when the last fetch failed. Lets the UI distinguish a network error
+  /// from a genuinely empty inbox instead of always showing "no notifications".
+  String? error;
+
   int get unreadCount => notifications.where((item) => !item.isRead).length;
 
   Future<void> fetchNotifications() async {
     isLoading = true;
+    error = null;
     notifyListeners();
     try {
       notifications = await _service.getNotifications();
-    } catch (_) {
-      notifications = [];
+    } catch (e) {
+      // Keep the last good list rather than blanking it on a transient error.
+      error = e.toString();
     } finally {
       isLoading = false;
       notifyListeners();

@@ -59,7 +59,32 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           title: 'Inbox',
           icon: Icons.inbox_outlined,
           child: provider.notifications.isEmpty
-              ? const EmptyPanel(message: 'No notifications yet.')
+              ? (provider.error != null
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.cloud_off_rounded,
+                              color: AppColors.danger, size: 32),
+                          const SizedBox(height: 10),
+                          Text(
+                            "Couldn't load notifications. Check your "
+                            'connection and try again.',
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.body13,
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: () => ref
+                                .read(notificationProvider)
+                                .fetchNotifications(),
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : const EmptyPanel(message: 'No notifications yet.'))
               : Column(
                   children: provider.notifications.map((item) {
                     final color = _colorForType(item.type);

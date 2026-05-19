@@ -6,7 +6,11 @@ import '../theme/app_colors.dart';
 
 class AppHelpers {
   static String getInitials(String name) {
-    final parts = name.trim().split(' ');
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
@@ -130,6 +134,31 @@ class AppHelpers {
       return int.tryParse(value) ?? double.tryParse(value)?.toInt() ?? fallback;
     }
     return fallback;
+  }
+
+  /// Safely coerces a decoded-JSON value to `Map<String, dynamic>`.
+  ///
+  /// Returns `null` when [value] is not a map (e.g. the backend sent a plain
+  /// string/id instead of an embedded association). This avoids the
+  /// `type 'String' is not a subtype of type 'Map<String, dynamic>'` crashes
+  /// that hard `as Map<String, dynamic>` casts throw.
+  static Map<String, dynamic>? asStringMap(Object? value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
+  /// Maps a decoded-JSON list of objects into models, skipping any element
+  /// that is not a map instead of throwing on the first bad element.
+  static List<T> mapList<T>(
+    Object? value,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
+    if (value is! List) return <T>[];
+    return value
+        .whereType<Map>()
+        .map((item) => fromJson(Map<String, dynamic>.from(item)))
+        .toList();
   }
 
   static String readableError(Object error) {

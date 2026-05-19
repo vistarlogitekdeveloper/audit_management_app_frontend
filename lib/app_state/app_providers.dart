@@ -21,10 +21,15 @@ final connectivityProvider = ChangeNotifierProvider<ConnectivityProvider>(
 
 final firebaseMessagingProvider =
     ChangeNotifierProvider<FirebaseMessagingController>(
+  // Use ref.read, not ref.watch: this controller wires one-time FCM stream
+  // listeners. Watching notificationProvider recreates the controller every
+  // time notifications are fetched (it notifies), re-registering
+  // FirebaseMessaging.onMessage listeners without cancelling the old ones —
+  // causing duplicate snackbars/fetches.
   (ref) => FirebaseMessagingController(
-    ref.watch(sharedPreferencesProvider),
-    ref.watch(notificationProvider),
-    ref.watch(appNavigatorKeyProvider),
+    ref.read(sharedPreferencesProvider),
+    ref.read(notificationProvider),
+    ref.read(appNavigatorKeyProvider),
   ),
 );
 
@@ -58,6 +63,9 @@ class FirebaseMessagingController extends ChangeNotifier {
   final GlobalKey<NavigatorState> _navKey;
   bool initialized = false;
 
+  StreamSubscription<RemoteMessage>? _onMessageSub;
+  StreamSubscription<RemoteMessage>? _onOpenedSub;
+
   Future<void> initialize() async {
     if (initialized) return;
     initialized = true;
@@ -69,7 +77,7 @@ class FirebaseMessagingController extends ChangeNotifier {
       await _prefs.setBool(AppConstants.notificationsAskedKey, true);
     }
 
-    FirebaseMessaging.onMessage.listen((message) async {
+    _onMessageSub = FirebaseMessaging.onMessage.listen((message) async {
       await _notificationProvider.fetchNotifications();
       final navigatorContext = _navKey.currentContext;
       if (navigatorContext != null &&
@@ -85,7 +93,7 @@ class FirebaseMessagingController extends ChangeNotifier {
       }
     });
 
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    _onOpenedSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
       final route = message.data['route']?.toString();
       if (route != null && route.isNotEmpty) {
         final navigatorContext = _navKey.currentContext;
@@ -94,5 +102,12 @@ class FirebaseMessagingController extends ChangeNotifier {
         }
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _onMessageSub?.cancel();
+    _onOpenedSub?.cancel();
+    super.dispose();
   }
 }

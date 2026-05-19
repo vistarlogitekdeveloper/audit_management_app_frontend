@@ -36,40 +36,47 @@ class MainScaffold extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Column(
-        children: [
-          OfflineBanner(visible: offline),
-          Expanded(
-            child: Row(
-              children: [
-                if (!isMobile) _Sidebar(items: items, location: location),
-                Expanded(
-                  child: Column(
-                    children: [
-                      _TopBar(
-                        title: title,
-                        location: location,
-                        unreadCount: notifications.unreadCount,
-                        showMenuHint: isMobile,
-                      ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: EdgeInsets.fromLTRB(
-                            isMobile ? 14 : 22,
-                            18,
-                            isMobile ? 14 : 22,
-                            24,
-                          ),
-                          child: child,
+      body: SafeArea(
+        // Keep the top bar / content out from under the device status bar &
+        // notch. bottom:false because the bottom nav bar handles its own
+        // safe inset.
+        bottom: false,
+        child: Column(
+          children: [
+            OfflineBanner(visible: offline),
+            Expanded(
+              child: Row(
+                children: [
+                  if (!isMobile)
+                    _Sidebar(items: items, location: location),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _TopBar(
+                          title: title,
+                          location: location,
+                          unreadCount: notifications.unreadCount,
+                          showMenuHint: isMobile,
                         ),
-                      ),
-                    ],
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.fromLTRB(
+                              isMobile ? 14 : 22,
+                              18,
+                              isMobile ? 14 : 22,
+                              24,
+                            ),
+                            child: child,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: isMobile
           ? _MobileNav(

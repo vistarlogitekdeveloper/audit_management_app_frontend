@@ -10,9 +10,17 @@ final authServiceProvider = Provider<AuthService>(
   (ref) => AuthService(ref.watch(apiServiceProvider)),
 );
 
-final authProvider = ChangeNotifierProvider<AuthProvider>(
-  (ref) => AuthProvider(ref.watch(authServiceProvider)),
-);
+final authProvider = ChangeNotifierProvider<AuthProvider>((ref) {
+  final provider = AuthProvider(ref.watch(authServiceProvider));
+  // When any request 401s, ApiService clears the stored session and emits
+  // here so the in-memory user is dropped and the router goes to /login.
+  final sub = ref
+      .watch(apiServiceProvider)
+      .onUnauthorized
+      .listen((_) => provider.handleUnauthorized());
+  ref.onDispose(sub.cancel);
+  return provider;
+});
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider(this._service);
@@ -24,6 +32,16 @@ class AuthProvider extends ChangeNotifier {
 
   bool get isAuthenticated => currentUser != null;
   String? get token => _service.storedToken;
+
+  /// Invoked when a request is rejected with 401. The session prefs are
+  /// already cleared by ApiService; here we just drop the in-memory user so
+  /// the router redirects to /login. Idempotent — concurrent failing
+  /// requests won't trigger a notify storm.
+  void handleUnauthorized() {
+    if (currentUser == null) return;
+    currentUser = null;
+    notifyListeners();
+  }
 
   Future<void> restoreSession() async {
     currentUser = _service.restoreUser();

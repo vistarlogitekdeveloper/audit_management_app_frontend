@@ -37,8 +37,8 @@ class ActionPlanSummary {
   bool get isClosed => status == 'closed' || itemsTotal > 0 && itemsClosed == itemsTotal;
 
   factory ActionPlanSummary.fromJson(Map<String, dynamic> json) {
-    final project = json['project'] as Map<String, dynamic>?;
-    final auditor = json['auditor'] as Map<String, dynamic>?;
+    final project = AppHelpers.asStringMap(json['project']);
+    final auditor = AppHelpers.asStringMap(json['auditor']);
     return ActionPlanSummary(
       id: json['id']?.toString() ?? '',
       auditSheetId: json['audit_sheet_id']?.toString() ?? '',

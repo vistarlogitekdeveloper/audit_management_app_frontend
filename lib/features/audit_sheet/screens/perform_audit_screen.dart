@@ -29,7 +29,6 @@ class _PerformAuditScreenState extends ConsumerState<PerformAuditScreen> {
       error: (e, st) => Center(child: Text('Error loading scheduled audits: $e')),
       data: (data) {
         // Show audits that are released but NOT yet submitted
-        final submittedStatuses = {'submitted', 'completed', 'under_review', 'acknowledged'};
         final activeAudits = <AuditorAudit>[];
         final seenIds = <String>{};
 

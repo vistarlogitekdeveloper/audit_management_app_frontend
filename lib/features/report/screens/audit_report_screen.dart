@@ -32,6 +32,7 @@ class _AuditReportScreenState extends ConsumerState<AuditReportScreen> {
   ReportModel? _report;
   String? _pdfPath;
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -40,9 +41,14 @@ class _AuditReportScreenState extends ConsumerState<AuditReportScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       _report = await ref.read(reportServiceProvider).getReport(widget.auditId);
+    } catch (e) {
+      _error = AppHelpers.readableError(e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -54,10 +60,24 @@ class _AuditReportScreenState extends ConsumerState<AuditReportScreen> {
     final report = _report;
     if (report == null) {
       return Center(
-        child: AppButton(
-          label: 'Retry',
-          icon: Icons.refresh_rounded,
-          onPressed: _load,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_rounded,
+                color: AppColors.danger, size: 36),
+            const SizedBox(height: 12),
+            Text(
+              _error ?? 'Could not load this report.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.body13,
+            ),
+            const SizedBox(height: 16),
+            AppButton(
+              label: 'Retry',
+              icon: Icons.refresh_rounded,
+              onPressed: _load,
+            ),
+          ],
         ),
       );
     }

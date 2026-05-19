@@ -52,6 +52,12 @@ class AuthService {
     } catch (_) {
       // Ensure local cleanup even if backend logout fails.
     }
+    await clearSession();
+  }
+
+  /// Removes every persisted auth key. Used by [logout] and by the 401
+  /// handler (which must not hit the network — the token is already invalid).
+  Future<void> clearSession() async {
     await _apiService.preferences.remove(AppConstants.authTokenKey);
     await _apiService.preferences.remove(AppConstants.refreshTokenKey);
     await _apiService.preferences.remove(AppConstants.userRoleKey);

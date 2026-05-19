@@ -14,7 +14,9 @@ final sharedPreferencesProvider = Provider<SharedPreferences>(
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return ApiService(ref, prefs);
+  final service = ApiService(ref, prefs);
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 class ApiService {
@@ -43,8 +45,13 @@ class ApiService {
         },
         onError: (error, handler) {
           if (error.response?.statusCode == 401) {
-            preferences.remove(AppConstants.authTokenKey);
-            preferences.remove(AppConstants.userRoleKey);
+            _clearSessionPrefs();
+            // Notify the auth layer so it drops the in-memory user and the
+            // router redirects to /login — clearing only the token left the
+            // app "logged in" with every request failing.
+            if (!_unauthorizedController.isClosed) {
+              _unauthorizedController.add(null);
+            }
           }
           handler.next(error);
         },
@@ -55,6 +62,22 @@ class ApiService {
   final Ref ref;
   final SharedPreferences preferences;
   final Dio dio;
+
+  /// Emits when the backend rejects a request with 401 and the local session
+  /// has been cleared. The auth layer listens to drive a redirect to /login.
+  final _unauthorizedController = StreamController<void>.broadcast();
+  Stream<void> get onUnauthorized => _unauthorizedController.stream;
+
+  void _clearSessionPrefs() {
+    preferences.remove(AppConstants.authTokenKey);
+    preferences.remove(AppConstants.refreshTokenKey);
+    preferences.remove(AppConstants.userRoleKey);
+    preferences.remove(AppConstants.userIdKey);
+    preferences.remove(AppConstants.userNameKey);
+    preferences.remove(AppConstants.userEmailKey);
+  }
+
+  void dispose() => _unauthorizedController.close();
 
   Future<dynamic> get(
     String path, {

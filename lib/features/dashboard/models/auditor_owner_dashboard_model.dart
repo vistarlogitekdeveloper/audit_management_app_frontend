@@ -18,11 +18,8 @@ class AuditorDashboardModel {
   final List<AuditorAudit> audits;
 
   factory AuditorDashboardModel.fromJson(Map<String, dynamic> json) {
-    final stats = json['stats'] as Map<String, dynamic>? ?? {};
-    final audits = (json['myAudits'] as List?)
-            ?.map((item) => AuditorAudit.fromJson(item as Map<String, dynamic>))
-            .toList() ??
-        [];
+    final stats = AppHelpers.asStringMap(json['stats']) ?? {};
+    final audits = AppHelpers.mapList(json['myAudits'], AuditorAudit.fromJson);
     // Compute upcomingCount from audits if not provided by backend
     final backendUpcoming = stats['upcoming'] == null
         ? null
@@ -157,24 +154,18 @@ class OwnerDashboardModel {
   final List<OwnerActionPlan> actionPlans;
 
   factory OwnerDashboardModel.fromJson(Map<String, dynamic> json) {
-    final stats = json['stats'] as Map<String, dynamic>? ?? const {};
-    final awaiting = (json['awaitingAcknowledgement'] ?? json['auditsAwaiting'])
-        as List?;
+    final stats = AppHelpers.asStringMap(json['stats']) ?? const {};
     return OwnerDashboardModel(
       awaitingReview: AppHelpers.parseInt(stats['awaitingReview']),
       acknowledged: AppHelpers.parseInt(stats['acknowledged']),
       actionPlanDue: AppHelpers.parseInt(stats['actionPlanDue']),
       lastPassPercent: AppHelpers.parseDouble(stats['lastPassPercent']),
-      auditsAwaiting: awaiting
-              ?.map((item) =>
-                  OwnerAuditReview.fromJson(item as Map<String, dynamic>))
-              .toList() ??
-          [],
-      actionPlans: (json['actionPlans'] as List?)
-              ?.map((item) =>
-                  OwnerActionPlan.fromJson(item as Map<String, dynamic>))
-              .toList() ??
-          [],
+      auditsAwaiting: AppHelpers.mapList(
+        json['awaitingAcknowledgement'] ?? json['auditsAwaiting'],
+        OwnerAuditReview.fromJson,
+      ),
+      actionPlans:
+          AppHelpers.mapList(json['actionPlans'], OwnerActionPlan.fromJson),
     );
   }
 
@@ -210,19 +201,14 @@ class OwnerAuditReview {
     // Backend `awaitingAcknowledgement` returns full AuditPlan rows with the
     // project + AuditSheet + auditor associations included. Older shapes used
     // flat fields like `passPercent` / `failPoints` — fall back to those.
-    final projectMap =
-        json['project'] is Map<String, dynamic> ? json['project'] as Map<String, dynamic> : null;
-    final sheetMap =
-        json['AuditSheet'] is Map<String, dynamic> ? json['AuditSheet'] as Map<String, dynamic> : null;
-    final auditorMap =
-        json['auditor'] is Map<String, dynamic> ? json['auditor'] as Map<String, dynamic> : null;
+    final projectMap = AppHelpers.asStringMap(json['project']);
+    final sheetMap = AppHelpers.asStringMap(json['AuditSheet']);
+    final auditorMap = AppHelpers.asStringMap(json['auditor']);
 
     final projectName = projectMap?['name']?.toString() ??
-        (json['project'] is String ? json['project'] as String : '') ??
-        '';
+        (json['project'] is String ? json['project'] as String : '');
     final auditorName = auditorMap?['name']?.toString() ??
-        (json['auditor'] is String ? json['auditor'] as String : '') ??
-        '';
+        (json['auditor'] is String ? json['auditor'] as String : '');
     final auditDate = DateTime.tryParse(
           json['audit_date']?.toString() ?? json['date']?.toString() ?? '',
         ) ??

@@ -32,6 +32,7 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
   DateTime? _auditDate;
   final _locationController = TextEditingController();
   final _remarksController = TextEditingController();
+  final _auditDateController = TextEditingController();
   String? _lastReportedLookupError;
 
   @override
@@ -44,6 +45,7 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
   void dispose() {
     _locationController.dispose();
     _remarksController.dispose();
+    _auditDateController.dispose();
     super.dispose();
   }
 
@@ -173,12 +175,7 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
             const SizedBox(height: 14),
             AppInput(
               label: 'Audit Date',
-              controller: TextEditingController(
-                text:
-                    _auditDate == null
-                        ? ''
-                        : AppDateUtils.formatDisplay(_auditDate!),
-              ),
+              controller: _auditDateController,
               isReadOnly: true,
               validator: (_) => Validators.validateFutureDate(_auditDate),
               suffixIcon: const Icon(Icons.calendar_today_outlined),
@@ -189,7 +186,13 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
                   lastDate: DateTime.now().add(const Duration(days: 365)),
                   initialDate: DateTime.now().add(const Duration(days: 1)),
                 );
-                if (selected != null) setState(() => _auditDate = selected);
+                if (selected != null) {
+                  setState(() {
+                    _auditDate = selected;
+                    _auditDateController.text =
+                        AppDateUtils.formatDisplay(selected);
+                  });
+                }
               },
             ),
             const SizedBox(height: 14),

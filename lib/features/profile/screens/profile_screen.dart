@@ -25,6 +25,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
   bool _initialized = false;
 
   @override
@@ -42,6 +43,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (user == null || _initialized) return;
     _nameController.text = user.name;
     _phoneController.text = user.phone;
+    _emailController.text = user.email;
     _initialized = true;
   }
 
@@ -49,6 +51,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -59,6 +62,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!_initialized && user != null) {
       _nameController.text = user.name;
       _phoneController.text = user.phone;
+      _emailController.text = user.email;
       _initialized = true;
     }
 
@@ -124,7 +128,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: 12),
                     AppInput(
                       label: 'Email',
-                      controller: TextEditingController(text: user.email),
+                      controller: _emailController,
                       isReadOnly: true,
                     ),
                     const SizedBox(height: 12),
