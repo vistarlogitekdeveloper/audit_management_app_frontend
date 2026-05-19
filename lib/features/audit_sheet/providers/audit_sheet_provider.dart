@@ -91,12 +91,26 @@ class AuditSheetProvider extends ChangeNotifier {
 
     AuditSheetModel? sheet;
     try {
-      sheet = await _service.getSheet(auditId);
-      _loadedAuditId = auditId;
+      final fetched = await _service.getSheet(auditId);
+      if (fetched != null) {
+        sheet = fetched;
+        _loadedAuditId = auditId;
+      } else {
+        // 404: no sheet exists for this audit plan yet (a not-yet-started
+        // audit). Present a fresh blank template — this is expected, so do
+        // NOT set loadError, and leave _loadedAuditId unset so a later visit
+        // refetches once the sheet has been created (e.g. after a save).
+        sheet = _service.emptyTemplate(
+          auditId: auditId,
+          projectName: projectName,
+          auditorName: auditorName,
+          location: location,
+        );
+      }
     } catch (error) {
-      // Surface the failure so the screen can show an error/retry instead of
-      // a silently empty sheet, and leave _loadedAuditId unset so the next
-      // navigation re-attempts the real fetch.
+      // A real failure (network/5xx/parse). Surface it so the screen can show
+      // an error/retry instead of a silently empty sheet, and leave
+      // _loadedAuditId unset so the next navigation re-attempts the fetch.
       loadError = _readableError(error);
       sheet = _service.emptyTemplate(
         auditId: auditId,

@@ -8,6 +8,22 @@ import '../constants/api_constants.dart';
 import '../constants/app_constants.dart';
 import '../utils/helpers.dart';
 
+/// Error thrown by [ApiService] for non-2xx responses / transport failures.
+/// Carries the HTTP [statusCode] (null for transport errors) so callers can
+/// react to specific cases — e.g. treating 404 as "resource doesn't exist
+/// yet" rather than a hard failure.
+class ApiException implements Exception {
+  const ApiException({required this.message, this.statusCode});
+
+  final String message;
+  final int? statusCode;
+
+  bool get isNotFound => statusCode == 404;
+
+  @override
+  String toString() => message;
+}
+
 final sharedPreferencesProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('SharedPreferences not initialized'),
 );
@@ -87,7 +103,10 @@ class ApiService {
       final response = await dio.get(path, queryParameters: queryParameters);
       return response.data;
     } on DioException catch (error) {
-      throw Exception(_mapDioError(error));
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
     }
   }
 
@@ -96,7 +115,10 @@ class ApiService {
       final response = await dio.post(path, data: data);
       return response.data;
     } on DioException catch (error) {
-      throw Exception(_mapDioError(error));
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
     }
   }
 
@@ -105,7 +127,10 @@ class ApiService {
       final response = await dio.patch(path, data: data);
       return response.data;
     } on DioException catch (error) {
-      throw Exception(_mapDioError(error));
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
     }
   }
 
@@ -114,7 +139,10 @@ class ApiService {
       final response = await dio.delete(path);
       return response.data;
     } on DioException catch (error) {
-      throw Exception(_mapDioError(error));
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
     }
   }
 

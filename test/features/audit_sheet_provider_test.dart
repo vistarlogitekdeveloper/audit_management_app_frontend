@@ -20,6 +20,9 @@ class _FakeAuditSheetService implements AuditSheetService {
   int getSheetCalls = 0;
   bool failFirstGetSheet = false;
 
+  /// Simulate a 404 (no sheet exists yet): getSheet resolves to null.
+  bool returnNullSheet = false;
+
   int updateCalls = 0;
   bool updateThrows = false;
   Completer<AuditSheetModel>? updateGate;
@@ -27,11 +30,12 @@ class _FakeAuditSheetService implements AuditSheetService {
   int submitCalls = 0;
 
   @override
-  Future<AuditSheetModel> getSheet(String auditId) async {
+  Future<AuditSheetModel?> getSheet(String auditId) async {
     getSheetCalls++;
     if (failFirstGetSheet && getSheetCalls == 1) {
       throw Exception('network down');
     }
+    if (returnNullSheet) return null;
     return _model('loaded-$auditId');
   }
 
@@ -100,6 +104,26 @@ void main() {
       await provider.loadSheet('A');
       expect(provider.isLoadedFor('A'), isTrue);
       expect(provider.isLoadedFor('B'), isFalse);
+    });
+
+    test('a 404 (no sheet yet) shows a fresh template WITHOUT an error',
+        () async {
+      final service = _FakeAuditSheetService()..returnNullSheet = true;
+      final provider = AuditSheetProvider(service);
+
+      await provider.loadSheet('A');
+
+      // Not-yet-started audit: blank template, no scary banner.
+      expect(provider.currentSheet, isNotNull);
+      expect(provider.loadError, isNull);
+      expect(provider.isLoadedFor('A'), isTrue);
+
+      // Once the sheet exists (e.g. after a save), a later visit refetches
+      // and picks it up (404 must not have cached the empty template).
+      service.returnNullSheet = false;
+      await provider.loadSheet('A');
+      expect(service.getSheetCalls, 2);
+      expect(provider.currentSheet!.id, 'loaded-A');
     });
   });
 

@@ -15,9 +15,18 @@ class AuditSheetService {
 
   final ApiService _apiService;
 
-  Future<AuditSheetModel> getSheet(String auditId) async {
-    final response = await _apiService.get(ApiConstants.auditSheet(auditId));
-    return AuditSheetModel.fromJson(_apiService.extractObject(response));
+  /// Returns the audit sheet for [auditId] (an audit-plan id), or `null` when
+  /// the backend has no sheet for it yet (404) — a not-yet-started audit,
+  /// which the caller should treat as "show a fresh blank sheet", not an
+  /// error. Other failures (network/5xx) still throw.
+  Future<AuditSheetModel?> getSheet(String auditId) async {
+    try {
+      final response = await _apiService.get(ApiConstants.auditSheet(auditId));
+      return AuditSheetModel.fromJson(_apiService.extractObject(response));
+    } on ApiException catch (e) {
+      if (e.isNotFound) return null;
+      rethrow;
+    }
   }
 
   Future<AuditSheetModel> updateSheet({
