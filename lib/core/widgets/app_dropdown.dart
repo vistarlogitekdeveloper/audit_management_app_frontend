@@ -32,6 +32,11 @@ class AppDropdown<T> extends StatelessWidget {
           items: items,
           validator: validator,
           onChanged: onChanged,
+          // Fill the available width so the selected item is constrained and
+          // the trailing arrow stays inside the field. Without this the
+          // field sizes to its content's intrinsic width and overflows on
+          // the right by the arrow's width (~25px) on narrower layouts.
+          isExpanded: true,
           decoration: InputDecoration(hintText: hint),
         ),
       ],
