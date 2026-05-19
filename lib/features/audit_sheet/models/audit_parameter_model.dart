@@ -39,8 +39,22 @@ class AuditParameterModel {
       name: json['name']?.toString() ?? json['param_name']?.toString() ?? '',
       result: json['result']?.toString(),
       remark: json['remark']?.toString() ?? '',
-      imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
+      // Prefer a browser-loadable (presigned http) URL so the photo renders
+      // on reload; the raw s3:// image_url is the last-resort fallback (it
+      // isn't directly loadable, but keeps prior behaviour when no presigned
+      // URL is supplied).
+      imageUrl: _firstLoadableUrl(json) ??
+          json['imageUrl']?.toString() ??
+          json['image_url']?.toString(),
     );
+  }
+
+  static String? _firstLoadableUrl(Map<String, dynamic> json) {
+    for (final key in const ['presigned_url', 'signed_url', 'url']) {
+      final value = json[key]?.toString();
+      if (value != null && value.startsWith('http')) return value;
+    }
+    return null;
   }
 
   Map<String, dynamic> toJson() => {
