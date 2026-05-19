@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/helpers.dart';
+import '../../../core/widgets/app_sheet_header.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../../core/widgets/status_pill.dart';
@@ -443,7 +444,6 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
   Future<void> _pickProject(List<ProjectLookupModel> projects) async {
     final selected = await showModalBottomSheet<String>(
       context: context,
-      showDragHandle: true,
       builder: (ctx) => _PickerSheet(
         title: 'Select project',
         items: projects.map((p) => (p.id, p.name)).toList(),
@@ -460,7 +460,6 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
   Future<void> _pickCluster(List<UserLookupModel> clusters) async {
     final selected = await showModalBottomSheet<String>(
       context: context,
-      showDragHandle: true,
       builder: (ctx) => _PickerSheet(
         title: 'Select cluster manager',
         items: clusters.map((c) => (c.id, c.name)).toList(),
@@ -615,7 +614,7 @@ class _PickerSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(title, style: AppTextStyles.title16),
+          AppSheetHeader(title: title),
           const SizedBox(height: 8),
           Flexible(
             child: ListView(

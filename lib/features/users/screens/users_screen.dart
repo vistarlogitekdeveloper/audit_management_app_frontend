@@ -8,6 +8,7 @@ import '../../../core/utils/helpers.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_sheet_header.dart';
 import '../../../core/widgets/app_input.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
@@ -244,7 +245,6 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
   Future<void> _showUserSheet(BuildContext context, {UserModel? user}) async {
     await showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
       isScrollControlled: true,
       backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(
@@ -420,8 +420,7 @@ class _UserFormState extends State<_UserForm> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(isEdit ? 'Edit user' : 'Add user',
-                style: AppTextStyles.title18),
+            AppSheetHeader(title: isEdit ? 'Edit user' : 'Add user'),
             const SizedBox(height: 14),
             AppInput(
               label: 'Name',
