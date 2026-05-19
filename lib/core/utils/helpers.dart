@@ -98,17 +98,31 @@ class AppHelpers {
       builder: (context) => AlertDialog(
         title: Text(title),
         content: Text(message),
+        // The global filledButtonTheme forces full-width buttons
+        // (Size.fromHeight = infinite width), which makes the default
+        // actions OverflowBar stack/misalign. Lay the actions out
+        // explicitly as two equal-width buttons on one row instead.
+        actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(cancelLabel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: confirmColor ?? AppColors.primary,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(confirmLabel),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(cancelLabel),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: confirmColor ?? AppColors.primary,
+                  ),
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: Text(confirmLabel),
+                ),
+              ),
+            ],
           ),
         ],
       ),
