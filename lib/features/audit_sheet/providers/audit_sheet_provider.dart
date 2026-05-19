@@ -167,6 +167,36 @@ class AuditSheetProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Uploads a freshly picked photo for [index] immediately (image upload is
+  /// independent of the draft PATCH — the backend stores it on the parameter
+  /// row keyed by audit_sheet + param_index). Shows the local file optimistically
+  /// so the auditor sees it right away; if the server returns a loadable
+  /// (presigned) URL we swap to that, otherwise the local preview stays for
+  /// this session. Returns false (with [actionError] set) on failure.
+  Future<bool> uploadImage(int index, String localPath) async {
+    final sheet = currentSheet;
+    if (sheet == null) return false;
+    setImage(index, localPath); // optimistic local preview
+    try {
+      final url = await _service.uploadParameterImage(
+        auditId: sheet.auditPlanId,
+        paramIndex: index,
+        filePath: localPath,
+      );
+      if (url != null) {
+        rowStates[index] =
+            (rowStates[index] ?? const AuditRowState()).copyWith(imagePath: url);
+      }
+      actionError = null;
+      notifyListeners();
+      return true;
+    } catch (error) {
+      actionError = _readableError(error);
+      notifyListeners();
+      return false;
+    }
+  }
+
   bool isRowComplete(int index) {
     final row = rowStates[index];
     return row != null &&

@@ -277,10 +277,21 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                 if (file == null) return;
                                 final compressed = await ImageService()
                                     .compressToMax500Kb(file.path);
-                                ref
-                                    .read(auditSheetProvider)
-                                    .setImage(parameter.index, compressed);
-                                _scheduleAutoSave();
+                                final provider =
+                                    ref.read(auditSheetProvider);
+                                final ok = await provider.uploadImage(
+                                    parameter.index, compressed);
+                                if (!context.mounted) return;
+                                if (ok) {
+                                  AppHelpers.showSuccessSnackbar(
+                                      context, 'Photo uploaded.');
+                                } else {
+                                  AppHelpers.showErrorSnackbar(
+                                    context,
+                                    provider.actionError ??
+                                        'Could not upload photo. Please try again.',
+                                  );
+                                }
                               },
                             );
                           }).toList(),

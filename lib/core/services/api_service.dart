@@ -122,6 +122,25 @@ class ApiService {
     }
   }
 
+  /// Multipart POST (file upload). [formData] should be a Dio [FormData];
+  /// the content type (incl. boundary) is set explicitly so the global
+  /// JSON default header doesn't break the request.
+  Future<dynamic> upload(String path, {required FormData formData}) async {
+    try {
+      final response = await dio.post(
+        path,
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+      return response.data;
+    } on DioException catch (error) {
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
+    }
+  }
+
   Future<dynamic> patch(String path, {Object? data}) async {
     try {
       final response = await dio.patch(path, data: data);

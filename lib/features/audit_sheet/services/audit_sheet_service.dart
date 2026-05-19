@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/api_service.dart';
@@ -54,6 +56,37 @@ class AuditSheetService {
 
   Future<void> submitSheet(String auditId) async {
     await _apiService.post(ApiConstants.submitAuditSheet(auditId));
+  }
+
+  /// Uploads a photo for one parameter (one image per parameter; re-uploading
+  /// overwrites it server-side). [auditId] is the audit-plan id. Returns a
+  /// browser-loadable (http) URL when the backend provides one (presigned),
+  /// otherwise `null` — the upload still succeeded, but the raw `s3://` URI
+  /// can't be rendered, so the caller keeps the local preview for now.
+  Future<String?> uploadParameterImage({
+    required String auditId,
+    required int paramIndex,
+    required String filePath,
+  }) async {
+    final formData = FormData.fromMap({
+      'param_index': paramIndex,
+      'image': await MultipartFile.fromFile(filePath),
+    });
+    final response = await _apiService.upload(
+      ApiConstants.uploadAuditSheetImage(auditId),
+      formData: formData,
+    );
+    final data = _apiService.extractObject(response);
+    for (final key in const [
+      'presigned_url',
+      'signed_url',
+      'url',
+      'image_url',
+    ]) {
+      final value = data[key]?.toString();
+      if (value != null && value.startsWith('http')) return value;
+    }
+    return null;
   }
 
   Future<AcknowledgeResult> acknowledgeSheet(
