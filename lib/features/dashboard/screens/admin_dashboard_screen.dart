@@ -572,9 +572,12 @@ class _RescheduleAuditForm extends StatelessWidget {
               label: 'Reason',
               controller: reasonController,
               maxLines: 3,
-              validator:
-                  (value) =>
-                      Validators.validateRequired(value, fieldName: 'Reason'),
+              helper: 'Minimum 3 characters',
+              validator: (value) => Validators.validateRequired(
+                value,
+                fieldName: 'Reason',
+                minLength: 3,
+              ),
             ),
             const SizedBox(height: 14),
             AppButton(

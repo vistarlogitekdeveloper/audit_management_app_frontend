@@ -22,9 +22,17 @@ class Validators {
     return null;
   }
 
-  static String? validateRequired(String? value, {String fieldName = 'This field'}) {
-    if (value == null || value.trim().isEmpty) {
+  static String? validateRequired(
+    String? value, {
+    String fieldName = 'This field',
+    int minLength = 0,
+  }) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
       return '$fieldName is required';
+    }
+    if (minLength > 0 && trimmed.length < minLength) {
+      return '$fieldName must be at least $minLength characters';
     }
     return null;
   }
