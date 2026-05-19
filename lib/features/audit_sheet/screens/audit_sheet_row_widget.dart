@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/widgets/app_sheet_header.dart';
 import '../../../core/widgets/status_pill.dart';
 
 class AuditRowWidget extends StatefulWidget {
@@ -102,6 +103,10 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(16, 12, 4, 0),
+                              child: AppSheetHeader(title: 'Add photo'),
+                            ),
                             ListTile(
                               leading: const Icon(Icons.photo_camera_outlined),
                               title: const Text('Take Photo'),

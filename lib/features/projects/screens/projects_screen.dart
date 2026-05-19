@@ -7,6 +7,7 @@ import '../../../core/utils/helpers.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_dropdown.dart';
+import '../../../core/widgets/app_sheet_header.dart';
 import '../../../core/widgets/app_input.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
@@ -407,8 +408,7 @@ class _ProjectFormState extends State<_ProjectForm> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(isEdit ? 'Edit project' : 'Add project',
-                style: AppTextStyles.title18),
+            AppSheetHeader(title: isEdit ? 'Edit project' : 'Add project'),
             const SizedBox(height: 14),
             AppInput(
               label: 'Project name',

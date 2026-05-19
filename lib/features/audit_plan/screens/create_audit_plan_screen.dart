@@ -8,6 +8,7 @@ import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_dialog.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_input.dart';
 import '../../../core/widgets/loading_overlay.dart';
@@ -32,6 +33,7 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
   DateTime? _auditDate;
   final _locationController = TextEditingController();
   final _remarksController = TextEditingController();
+  final _auditDateController = TextEditingController();
   String? _lastReportedLookupError;
 
   @override
@@ -44,6 +46,7 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
   void dispose() {
     _locationController.dispose();
     _remarksController.dispose();
+    _auditDateController.dispose();
     super.dispose();
   }
 
@@ -173,12 +176,7 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
             const SizedBox(height: 14),
             AppInput(
               label: 'Audit Date',
-              controller: TextEditingController(
-                text:
-                    _auditDate == null
-                        ? ''
-                        : AppDateUtils.formatDisplay(_auditDate!),
-              ),
+              controller: _auditDateController,
               isReadOnly: true,
               validator: (_) => Validators.validateFutureDate(_auditDate),
               suffixIcon: const Icon(Icons.calendar_today_outlined),
@@ -189,7 +187,13 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
                   lastDate: DateTime.now().add(const Duration(days: 365)),
                   initialDate: DateTime.now().add(const Duration(days: 1)),
                 );
-                if (selected != null) setState(() => _auditDate = selected);
+                if (selected != null) {
+                  setState(() {
+                    _auditDate = selected;
+                    _auditDateController.text =
+                        AppDateUtils.formatDisplay(selected);
+                  });
+                }
               },
             ),
             const SizedBox(height: 14),
@@ -318,74 +322,45 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
   Future<void> _showReleasedSuccessDialog(BuildContext context) async {
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+      builder: (ctx) => AppDialog(
+        icon: Icons.send_rounded,
+        iconColor: AppColors.primary,
+        title: 'Audit Plan Released!',
+        message:
+            'The audit plan has been released successfully. Notification emails have been sent to the auditor, project incharge, and cluster manager.',
+        actions: Row(
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.send_rounded,
-                color: AppColors.primary,
-                size: 38,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Audit Plan Released!',
-              style: AppTextStyles.headline22,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'The audit plan has been released successfully. Notification emails have been sent to the auditor, project incharge, and cluster manager.',
-              style: AppTextStyles.body14.copyWith(color: AppColors.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 28),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      // Stay on the create plan form to create another
-                    },
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: const Text('Create Another'),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  // Stay on the create plan form to create another
+                },
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      context.go('/admin/calendar');
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: const Text('View Calendar'),
+                child: const Text('Create Another'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  context.go('/admin/calendar');
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-              ],
+                child: const Text('View Calendar'),
+              ),
             ),
           ],
         ),

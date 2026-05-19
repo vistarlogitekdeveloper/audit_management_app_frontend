@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/helpers.dart';
+import '../../../core/widgets/app_sheet_header.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../../core/widgets/status_pill.dart';
@@ -71,6 +72,37 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
           action: _ExportMenu(onPick: _runExport),
         ),
         const SizedBox(height: 18),
+        if (auditPlan.bootstrapError != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.danger.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border:
+                  Border.all(color: AppColors.danger.withValues(alpha: 0.32)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.cloud_off_rounded,
+                    color: AppColors.danger, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Some report data failed to load — filters and totals '
+                    'may be incomplete.',
+                    style: AppTextStyles.body12,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => ref.read(auditPlanProvider).bootstrap(),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         _buildFilters(auditPlan),
         const SizedBox(height: 14),
         _buildSummaryCards(stats, filteredPlans),
@@ -582,7 +614,7 @@ class _PickerSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(title, style: AppTextStyles.title16),
+          AppSheetHeader(title: title),
           const SizedBox(height: 8),
           Flexible(
             child: ListView(

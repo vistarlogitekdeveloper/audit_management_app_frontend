@@ -8,6 +8,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_sheet_header.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../../core/widgets/status_pill.dart';
@@ -374,7 +375,7 @@ class _FilterSheetState extends State<_FilterSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Filter history', style: AppTextStyles.title18),
+          const AppSheetHeader(title: 'Filter history'),
           const SizedBox(height: 14),
           Text('Date range', style: AppTextStyles.medium13),
           const SizedBox(height: 6),

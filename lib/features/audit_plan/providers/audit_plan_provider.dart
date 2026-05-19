@@ -30,13 +30,26 @@ class AuditPlanProvider extends ChangeNotifier {
   bool lookupsLoading = false;
   String? lookupsError;
 
+  /// Set when [bootstrap] failed to load one of its data sets, so screens can
+  /// show an error instead of silently empty filters/lists. (Distinct from
+  /// [lookupsError], which only covers the user-lookup dropdowns.)
+  String? bootstrapError;
+
   Future<void> bootstrap() async {
-    await Future.wait([
-      fetchPlans(),
-      fetchProjects(),
-      fetchUserLookups(),
-      fetchReleasedAudits(),
-    ]);
+    bootstrapError = null;
+    try {
+      await Future.wait([
+        fetchPlans(),
+        fetchProjects(),
+        fetchUserLookups(),
+        fetchReleasedAudits(),
+      ]);
+    } catch (e) {
+      // Without this catch the rejection escapes the unawaited microtask in
+      // initState as an unhandled async error and the user sees nothing.
+      bootstrapError = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+    }
   }
 
   Future<void> fetchPlans() async {

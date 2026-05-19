@@ -24,19 +24,30 @@ class UserProvider extends ChangeNotifier {
   String roleFilter = '';
   String search = '';
 
+  /// Monotonic request id. Rapid filter changes start overlapping fetches;
+  /// only the most recent one is allowed to apply its result so a slow
+  /// earlier response can't overwrite newer data.
+  int _fetchSeq = 0;
+
   Future<void> fetchUsers() async {
+    final seq = ++_fetchSeq;
     isLoading = true;
     error = null;
     notifyListeners();
     try {
-      users = await _service.listUsers(
+      final result = await _service.listUsers(
         role: roleFilter.isEmpty ? null : roleFilter,
       );
+      if (seq != _fetchSeq) return;
+      users = result;
     } catch (e) {
+      if (seq != _fetchSeq) return;
       error = e.toString();
     } finally {
-      isLoading = false;
-      notifyListeners();
+      if (seq == _fetchSeq) {
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
 

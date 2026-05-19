@@ -16,9 +16,12 @@ class ActionPlanService {
       );
       if (response == null) return null;
       return ActionPlanModel.fromJson(_apiService.extractObject(response));
-    } catch (_) {
-      // Backend returns 404 when no plan exists for the sheet — treat as null.
-      return null;
+    } on ApiException catch (e) {
+      // 404 == no plan exists for this sheet yet → null. Let real failures
+      // (network/5xx) propagate so the provider can surface them instead of
+      // masking everything as "no plan".
+      if (e.isNotFound) return null;
+      rethrow;
     }
   }
 

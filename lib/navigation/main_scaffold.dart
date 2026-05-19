@@ -36,40 +36,47 @@ class MainScaffold extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Column(
-        children: [
-          OfflineBanner(visible: offline),
-          Expanded(
-            child: Row(
-              children: [
-                if (!isMobile) _Sidebar(items: items, location: location),
-                Expanded(
-                  child: Column(
-                    children: [
-                      _TopBar(
-                        title: title,
-                        location: location,
-                        unreadCount: notifications.unreadCount,
-                        showMenuHint: isMobile,
-                      ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: EdgeInsets.fromLTRB(
-                            isMobile ? 14 : 22,
-                            18,
-                            isMobile ? 14 : 22,
-                            24,
-                          ),
-                          child: child,
+      body: SafeArea(
+        // Keep the top bar / content out from under the device status bar &
+        // notch. bottom:false because the bottom nav bar handles its own
+        // safe inset.
+        bottom: false,
+        child: Column(
+          children: [
+            OfflineBanner(visible: offline),
+            Expanded(
+              child: Row(
+                children: [
+                  if (!isMobile)
+                    _Sidebar(items: items, location: location),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _TopBar(
+                          title: title,
+                          location: location,
+                          unreadCount: notifications.unreadCount,
+                          showMenuHint: isMobile,
                         ),
-                      ),
-                    ],
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.fromLTRB(
+                              isMobile ? 14 : 22,
+                              18,
+                              isMobile ? 14 : 22,
+                              24,
+                            ),
+                            child: child,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: isMobile
           ? _MobileNav(
@@ -116,10 +123,13 @@ class MainScaffold extends ConsumerWidget {
           _NavItem('Reports', '/cluster/reports', Icons.bar_chart_outlined),
         ];
       default:
+        // No owner-scoped reports screen exists; the old '/report/admin'
+        // entry routed to ReportScreen(auditId:'admin') and 404'd. Removed
+        // until an owner reports view is built (pointing it at the admin
+        // reports screen would expose cross-project data).
         return const [
           _NavItem('My Reviews', '/owner/dashboard', Icons.grid_view_rounded),
           _NavItem('Action Plans', '/owner/action-plans', Icons.checklist_rounded),
-          _NavItem('Reports', '/report/admin', Icons.bar_chart_outlined),
         ];
     }
   }

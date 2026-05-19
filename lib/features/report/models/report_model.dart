@@ -63,34 +63,29 @@ class ReportModel {
         passCount: AppHelpers.parseInt(json['passCount']),
         failCount: AppHelpers.parseInt(json['failCount']),
         passPercent: AppHelpers.parseDouble(json['passPercent']),
-        parameters: (json['parameters'] as List<dynamic>? ?? [])
-            .map((item) =>
-                AuditParameterModel.fromJson(item as Map<String, dynamic>))
-            .toList(),
-        actionPlan: json['actionPlan'] is Map<String, dynamic>
-            ? ActionPlanModel.fromJson(
-                json['actionPlan'] as Map<String, dynamic>)
-            : null,
+        parameters: AppHelpers.mapList(
+          json['parameters'],
+          AuditParameterModel.fromJson,
+        ),
+        actionPlan: AppHelpers.asStringMap(json['actionPlan']) == null
+            ? null
+            : ActionPlanModel.fromJson(
+                AppHelpers.asStringMap(json['actionPlan'])!),
       );
     }
 
     // ── Production / nested shape ───────────────────────────────────────
-    final auditPlan =
-        (json['auditPlan'] as Map<String, dynamic>?) ?? const {};
-    final project =
-        (json['project'] as Map<String, dynamic>?) ?? const {};
-    final auditor =
-        (json['auditor'] as Map<String, dynamic>?) ?? const {};
-    final sheet =
-        (json['auditSheet'] as Map<String, dynamic>?) ?? const {};
+    final auditPlan = AppHelpers.asStringMap(json['auditPlan']) ?? const {};
+    final project = AppHelpers.asStringMap(json['project']) ?? const {};
+    final auditor = AppHelpers.asStringMap(json['auditor']) ?? const {};
+    final sheet = AppHelpers.asStringMap(json['auditSheet']) ?? const {};
     // The cluster manager comes from project.clusterManager (Sequelize
-    // association alias) but some payloads put it at the top level.
-    final clusterManager = (project['clusterManager'] as Map<String, dynamic>?) ??
-        (json['clusterManager'] as Map<String, dynamic>?) ??
+    // association alias) but some payloads put it at the top level — and the
+    // legacy/flat shape sends it as a plain name string.
+    final clusterManager = AppHelpers.asStringMap(project['clusterManager']) ??
+        AppHelpers.asStringMap(json['clusterManager']) ??
         const {};
-    final actionPlanJson = json['actionPlan'] is Map<String, dynamic>
-        ? json['actionPlan'] as Map<String, dynamic>
-        : null;
+    final actionPlanJson = AppHelpers.asStringMap(json['actionPlan']);
 
     return ReportModel(
       auditId: auditPlan['id']?.toString() ??
@@ -127,10 +122,10 @@ class ReportModel {
       passPercent: AppHelpers.parseDouble(
         sheet['pass_percent'] ?? json['passPercent'],
       ),
-      parameters: ((sheet['parameters'] ?? json['parameters']) as List<dynamic>? ?? [])
-          .map((item) =>
-              AuditParameterModel.fromJson(item as Map<String, dynamic>))
-          .toList(),
+      parameters: AppHelpers.mapList(
+        sheet['parameters'] ?? json['parameters'],
+        AuditParameterModel.fromJson,
+      ),
       actionPlan:
           actionPlanJson == null ? null : ActionPlanModel.fromJson(actionPlanJson),
     );

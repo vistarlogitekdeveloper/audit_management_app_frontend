@@ -9,6 +9,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_dialog.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../../core/services/image_service.dart';
@@ -74,56 +75,20 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
   Future<void> _showSubmitSuccessDialog(BuildContext context) async {
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
-      builder:
-          (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: AppColors.secondary,
-                    size: 42,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Audit Submitted Successfully!',
-                  style: AppTextStyles.headline22,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Your audit findings have been recorded. The project owner will be notified for acknowledgment.',
-                  style: AppTextStyles.body14.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 28),
-                SizedBox(
-                  width: double.infinity,
-                  child: AppButton(
-                    label: 'Return to Dashboard',
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                    },
-                  ),
-                ),
-              ],
-            ),
+      builder: (ctx) => AppDialog(
+        icon: Icons.check_circle_rounded,
+        iconColor: AppColors.secondary,
+        title: 'Audit Submitted Successfully!',
+        message:
+            'Your audit findings have been recorded. The project owner will be notified for acknowledgment.',
+        actions: SizedBox(
+          width: double.infinity,
+          child: AppButton(
+            label: 'Return to Dashboard',
+            onPressed: () => Navigator.of(ctx).pop(),
           ),
+        ),
+      ),
     );
   }
 
@@ -132,7 +97,12 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
     final provider = ref.watch(auditSheetProvider);
     final sheet = provider.currentSheet;
 
-    if (sheet == null) {
+    // auditSheetProvider is a singleton: until *this* screen's audit has
+    // actually been loaded, currentSheet may still hold a previously opened
+    // audit's data. Building from it would create remark controllers from the
+    // wrong sheet (putIfAbsent never refreshes them afterwards), so wait until
+    // the provider's loaded state corresponds to this screen's audit.
+    if (sheet == null || !provider.isLoadedFor(widget.auditId)) {
       return const LoadingState(message: 'Loading audit sheet…');
     }
 
@@ -199,6 +169,14 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
               const SizedBox(height: 12),
               _SubmittedEditableBanner(),
             ],
+            if (provider.loadError != null) ...[
+              const SizedBox(height: 12),
+              _SheetLoadErrorBanner(
+                message: provider.loadError!,
+                onRetry: () =>
+                    ref.read(auditSheetProvider).loadSheet(widget.auditId),
+              ),
+            ],
             const SizedBox(height: 16),
             ListView(
               controller: _scrollController,
@@ -264,10 +242,21 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                 if (file == null) return;
                                 final compressed = await ImageService()
                                     .compressToMax500Kb(file.path);
-                                ref
-                                    .read(auditSheetProvider)
-                                    .setImage(parameter.index, compressed);
-                                _scheduleAutoSave();
+                                final provider =
+                                    ref.read(auditSheetProvider);
+                                final ok = await provider.uploadImage(
+                                    parameter.index, compressed);
+                                if (!context.mounted) return;
+                                if (ok) {
+                                  AppHelpers.showSuccessSnackbar(
+                                      context, 'Photo uploaded.');
+                                } else {
+                                  AppHelpers.showErrorSnackbar(
+                                    context,
+                                    provider.actionError ??
+                                        'Could not upload photo. Please try again.',
+                                  );
+                                }
                               },
                             );
                           }).toList(),
@@ -285,13 +274,21 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
             ),
             _ActionDock(
               isReadOnly: isAcknowledged,
+              isBusy: provider.isLoading,
               submitLabel: isSubmitted ? 'Re-submit Audit' : 'Submit Audit',
               onSave: () async {
-                await provider.saveDraft();
-                if (context.mounted) {
+                final ok = await provider.saveDraft();
+                if (!context.mounted) return;
+                if (ok) {
                   AppHelpers.showSuccessSnackbar(
                     context,
                     'Draft saved successfully.',
+                  );
+                } else {
+                  AppHelpers.showErrorSnackbar(
+                    context,
+                    provider.actionError ??
+                        'Could not save draft. Please try again.',
                   );
                 }
               },
@@ -322,8 +319,16 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                 );
                 if (!confirm) return;
 
-                await provider.submitSheet();
+                final ok = await provider.submitSheet();
                 if (!context.mounted) return;
+                if (!ok) {
+                  AppHelpers.showErrorSnackbar(
+                    context,
+                    provider.actionError ??
+                        'Could not submit the audit. Please try again.',
+                  );
+                  return;
+                }
                 ref.invalidate(auditorDashboardProvider);
                 await _showSubmitSuccessDialog(context);
                 if (context.mounted) context.go('/auditor/dashboard');
@@ -360,6 +365,58 @@ class _SubmittedEditableBanner extends StatelessWidget {
               'after changes so the owner sees the latest.',
               style: AppTextStyles.body12,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetLoadErrorBanner extends StatelessWidget {
+  const _SheetLoadErrorBanner({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.32)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.cloud_off_rounded,
+              color: AppColors.danger, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Couldn't load the saved audit sheet. Showing a blank "
+                  'form — your entries are not synced yet.',
+                  style: AppTextStyles.body12,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message,
+                  style: AppTextStyles.body11.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: onRetry,
+            child: const Text('Retry'),
           ),
         ],
       ),
@@ -749,11 +806,13 @@ class _ActionDock extends StatelessWidget {
     required this.onSave,
     required this.onSubmit,
     required this.isReadOnly,
+    this.isBusy = false,
     this.submitLabel = 'Submit Audit',
   });
   final VoidCallback onSave;
   final VoidCallback onSubmit;
   final bool isReadOnly;
+  final bool isBusy;
   final String submitLabel;
 
   @override
@@ -785,14 +844,16 @@ class _ActionDock extends StatelessWidget {
                     child: AppButton(
                       label: 'Save Draft',
                       variant: AppButtonVariant.ghost,
-                      onPressed: onSave,
+                      isLoading: isBusy,
+                      onPressed: isBusy ? null : onSave,
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: AppButton(
                       label: submitLabel,
-                      onPressed: onSubmit,
+                      isLoading: isBusy,
+                      onPressed: isBusy ? null : onSubmit,
                     ),
                   ),
                 ],

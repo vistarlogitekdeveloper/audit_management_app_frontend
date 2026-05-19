@@ -123,9 +123,14 @@ class _ActionPlanTrackerScreenState
                   plan: plan,
                   readOnly: widget.readOnly,
                   onOpen: () {
+                    // Cluster view opens the read-only audit report, keyed by
+                    // audit *plan* id (GET /reports/:auditPlanId). The owner
+                    // edit flow opens ActionPlanScreen, which loads the plan by
+                    // audit *sheet* id (GET /action-plans/:auditSheetId) — see
+                    // ActionPlanService.getActionPlan.
                     final route = widget.readOnly
                         ? '/cluster/audit/${plan.auditPlanId}'
-                        : '/owner/action-plan/${plan.auditPlanId}';
+                        : '/owner/action-plan/${plan.auditSheetId}';
                     context.go(route);
                   },
                 ),

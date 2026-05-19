@@ -18,27 +18,15 @@ class AdminDashboardModel {
   factory AdminDashboardModel.fromJson(Map<String, dynamic> json) {
     return AdminDashboardModel(
       stats: DashboardStats.fromJson(
-        json['stats'] as Map<String, dynamic>? ?? {},
+        AppHelpers.asStringMap(json['stats']) ?? {},
       ),
-      upcomingAudits: (json['upcomingAudits'] as List?)
-              ?.map((item) =>
-                  UpcomingAudit.fromJson(item as Map<String, dynamic>))
-              .toList() ??
-          [],
-      clusterPassRates: (json['clusterPassRates'] as List?)
-              ?.map((item) =>
-                  ClusterPassRate.fromJson(item as Map<String, dynamic>))
-              .toList() ??
-          [],
-      recentActivity: (json['recentActivity'] as List?)
-              ?.map((item) =>
-                  ActivityItem.fromJson(item as Map<String, dynamic>))
-              .toList() ??
-          [],
-      allProjects: (json['allProjects'] as List?)
-              ?.map((item) => Project.fromJson(item as Map<String, dynamic>))
-              .toList() ??
-          [],
+      upcomingAudits:
+          AppHelpers.mapList(json['upcomingAudits'], UpcomingAudit.fromJson),
+      clusterPassRates:
+          AppHelpers.mapList(json['clusterPassRates'], ClusterPassRate.fromJson),
+      recentActivity:
+          AppHelpers.mapList(json['recentActivity'], ActivityItem.fromJson),
+      allProjects: AppHelpers.mapList(json['allProjects'], Project.fromJson),
     );
   }
 

@@ -38,6 +38,7 @@ class OwnerDashboardScreen extends ConsumerWidget {
           summary: '${a.failPoints} fail points',
           dueDate: AppDateUtils.formatDisplay(a.dueDate),
           remaining: '${a.daysRemaining} days',
+          daysRemaining: a.daysRemaining,
         )).toList();
 
         final width = MediaQuery.sizeOf(context).width;
@@ -327,7 +328,7 @@ class _ActionPlanPanel extends StatelessWidget {
       icon: Icons.checklist_rounded,
       child: Column(
         children: actions.map((item) {
-          final urgent = item.remaining.startsWith('2');
+          final urgent = item.isUrgent;
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
@@ -444,6 +445,7 @@ class _ActionRow {
     required this.summary,
     required this.dueDate,
     required this.remaining,
+    required this.daysRemaining,
   });
 
   final String id;
@@ -451,6 +453,10 @@ class _ActionRow {
   final String summary;
   final String dueDate;
   final String remaining;
+  final int daysRemaining;
+
+  /// Urgent when the plan is overdue or due within the next 3 days.
+  bool get isUrgent => daysRemaining <= 3;
 }
 
 BoxDecoration _panelDecoration() {

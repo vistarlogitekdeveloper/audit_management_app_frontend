@@ -33,6 +33,7 @@ class ActionItemWidget extends StatefulWidget {
 class _ActionItemWidgetState extends State<ActionItemWidget> {
   late final TextEditingController _correctiveController;
   late final TextEditingController _personController;
+  late final TextEditingController _dueDateController;
 
   @override
   void initState() {
@@ -41,6 +42,9 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
         TextEditingController(text: widget.item.correctiveAction);
     _personController =
         TextEditingController(text: widget.item.responsiblePerson);
+    _dueDateController = TextEditingController(
+      text: AppDateUtils.formatDisplay(widget.item.dueDate),
+    );
   }
 
   @override
@@ -54,12 +58,17 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
         _personController.text != widget.item.responsiblePerson) {
       _personController.text = widget.item.responsiblePerson;
     }
+    if (oldWidget.item.dueDate != widget.item.dueDate) {
+      _dueDateController.text =
+          AppDateUtils.formatDisplay(widget.item.dueDate);
+    }
   }
 
   @override
   void dispose() {
     _correctiveController.dispose();
     _personController.dispose();
+    _dueDateController.dispose();
     super.dispose();
   }
 
@@ -125,9 +134,7 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
                   label: overDeadline
                       ? 'Due date (must be ≤ ${AppDateUtils.formatDisplay(widget.deadline)})'
                       : 'Due date',
-                  controller: TextEditingController(
-                    text: AppDateUtils.formatDisplay(widget.item.dueDate),
-                  ),
+                  controller: _dueDateController,
                   isReadOnly: true,
                   suffixIcon: const Icon(Icons.calendar_today_outlined),
                   onTap: () async {

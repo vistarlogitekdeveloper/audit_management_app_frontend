@@ -8,13 +8,31 @@ import '../constants/api_constants.dart';
 import '../constants/app_constants.dart';
 import '../utils/helpers.dart';
 
+/// Error thrown by [ApiService] for non-2xx responses / transport failures.
+/// Carries the HTTP [statusCode] (null for transport errors) so callers can
+/// react to specific cases — e.g. treating 404 as "resource doesn't exist
+/// yet" rather than a hard failure.
+class ApiException implements Exception {
+  const ApiException({required this.message, this.statusCode});
+
+  final String message;
+  final int? statusCode;
+
+  bool get isNotFound => statusCode == 404;
+
+  @override
+  String toString() => message;
+}
+
 final sharedPreferencesProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('SharedPreferences not initialized'),
 );
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return ApiService(ref, prefs);
+  final service = ApiService(ref, prefs);
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 class ApiService {
@@ -43,8 +61,13 @@ class ApiService {
         },
         onError: (error, handler) {
           if (error.response?.statusCode == 401) {
-            preferences.remove(AppConstants.authTokenKey);
-            preferences.remove(AppConstants.userRoleKey);
+            _clearSessionPrefs();
+            // Notify the auth layer so it drops the in-memory user and the
+            // router redirects to /login — clearing only the token left the
+            // app "logged in" with every request failing.
+            if (!_unauthorizedController.isClosed) {
+              _unauthorizedController.add(null);
+            }
           }
           handler.next(error);
         },
@@ -56,6 +79,22 @@ class ApiService {
   final SharedPreferences preferences;
   final Dio dio;
 
+  /// Emits when the backend rejects a request with 401 and the local session
+  /// has been cleared. The auth layer listens to drive a redirect to /login.
+  final _unauthorizedController = StreamController<void>.broadcast();
+  Stream<void> get onUnauthorized => _unauthorizedController.stream;
+
+  void _clearSessionPrefs() {
+    preferences.remove(AppConstants.authTokenKey);
+    preferences.remove(AppConstants.refreshTokenKey);
+    preferences.remove(AppConstants.userRoleKey);
+    preferences.remove(AppConstants.userIdKey);
+    preferences.remove(AppConstants.userNameKey);
+    preferences.remove(AppConstants.userEmailKey);
+  }
+
+  void dispose() => _unauthorizedController.close();
+
   Future<dynamic> get(
     String path, {
     Map<String, dynamic>? queryParameters,
@@ -64,7 +103,10 @@ class ApiService {
       final response = await dio.get(path, queryParameters: queryParameters);
       return response.data;
     } on DioException catch (error) {
-      throw Exception(_mapDioError(error));
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
     }
   }
 
@@ -73,7 +115,29 @@ class ApiService {
       final response = await dio.post(path, data: data);
       return response.data;
     } on DioException catch (error) {
-      throw Exception(_mapDioError(error));
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
+    }
+  }
+
+  /// Multipart POST (file upload). [formData] should be a Dio [FormData];
+  /// the content type (incl. boundary) is set explicitly so the global
+  /// JSON default header doesn't break the request.
+  Future<dynamic> upload(String path, {required FormData formData}) async {
+    try {
+      final response = await dio.post(
+        path,
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+      return response.data;
+    } on DioException catch (error) {
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
     }
   }
 
@@ -82,7 +146,10 @@ class ApiService {
       final response = await dio.patch(path, data: data);
       return response.data;
     } on DioException catch (error) {
-      throw Exception(_mapDioError(error));
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
     }
   }
 
@@ -91,7 +158,10 @@ class ApiService {
       final response = await dio.delete(path);
       return response.data;
     } on DioException catch (error) {
-      throw Exception(_mapDioError(error));
+      throw ApiException(
+        message: _mapDioError(error),
+        statusCode: error.response?.statusCode,
+      );
     }
   }
 

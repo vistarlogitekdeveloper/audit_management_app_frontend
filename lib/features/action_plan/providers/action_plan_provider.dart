@@ -50,6 +50,9 @@ class ActionPlanProvider extends ChangeNotifier {
   }
 
   void updateItem(int index, ActionItemModel item) {
+    // A stale ActionItemWidget callback can fire with an old index while a
+    // save() has just swapped in a shorter items list — guard the range.
+    if (index < 0 || index >= items.length) return;
     items[index] = item;
     notifyListeners();
   }
