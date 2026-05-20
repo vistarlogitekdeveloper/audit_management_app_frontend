@@ -1,8 +1,14 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "audit-management-app-frontend",
-  "compatibility_date": "2024-11-06",
+  "compatibility_date": "2026-05-20",
+  "observability": {
+    "enabled": true
+  },
   "assets": {
-    "directory": "./build/web",
-    "not_found_handling": "single-page-application"
-  }
+    "directory": "web"
+  },
+  "compatibility_flags": [
+    "nodejs_compat"
+  ]
 }
