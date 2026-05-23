@@ -13,10 +13,19 @@ import '../utils/helpers.dart';
 /// react to specific cases — e.g. treating 404 as "resource doesn't exist
 /// yet" rather than a hard failure.
 class ApiException implements Exception {
-  const ApiException({required this.message, this.statusCode});
+  const ApiException({
+    required this.message,
+    this.statusCode,
+    this.isFileTooLarge = false,
+  });
 
   final String message;
   final int? statusCode;
+
+  /// True when the request was rejected because the uploaded file exceeded the
+  /// backend's size limit (HTTP 413 or a multer LIMIT_FILE_SIZE error). Set at
+  /// construction since it can't be derived from [statusCode] alone.
+  final bool isFileTooLarge;
 
   bool get isNotFound => statusCode == 404;
 
@@ -103,10 +112,7 @@ class ApiService {
       final response = await dio.get(path, queryParameters: queryParameters);
       return response.data;
     } on DioException catch (error) {
-      throw ApiException(
-        message: _mapDioError(error),
-        statusCode: error.response?.statusCode,
-      );
+      throw _toApiException(error);
     }
   }
 
@@ -115,10 +121,7 @@ class ApiService {
       final response = await dio.post(path, data: data);
       return response.data;
     } on DioException catch (error) {
-      throw ApiException(
-        message: _mapDioError(error),
-        statusCode: error.response?.statusCode,
-      );
+      throw _toApiException(error);
     }
   }
 
@@ -134,10 +137,7 @@ class ApiService {
       );
       return response.data;
     } on DioException catch (error) {
-      throw ApiException(
-        message: _mapDioError(error),
-        statusCode: error.response?.statusCode,
-      );
+      throw _toApiException(error);
     }
   }
 
@@ -146,10 +146,7 @@ class ApiService {
       final response = await dio.patch(path, data: data);
       return response.data;
     } on DioException catch (error) {
-      throw ApiException(
-        message: _mapDioError(error),
-        statusCode: error.response?.statusCode,
-      );
+      throw _toApiException(error);
     }
   }
 
@@ -158,11 +155,30 @@ class ApiService {
       final response = await dio.delete(path);
       return response.data;
     } on DioException catch (error) {
-      throw ApiException(
-        message: _mapDioError(error),
-        statusCode: error.response?.statusCode,
-      );
+      throw _toApiException(error);
     }
+  }
+
+  /// Builds the [ApiException] thrown by every request method, centralising
+  /// detection of the backend's upload size rejection so callers get a clear
+  /// message instead of a generic failure.
+  ApiException _toApiException(DioException error) {
+    final tooLarge = _isFileTooLarge(error);
+    return ApiException(
+      message: tooLarge
+          ? 'Image is too large. Please pick a smaller photo.'
+          : _mapDioError(error),
+      statusCode: error.response?.statusCode,
+      isFileTooLarge: tooLarge,
+    );
+  }
+
+  /// True for an HTTP 413, or any response body mentioning the multer
+  /// LIMIT_FILE_SIZE / "File too large" error.
+  bool _isFileTooLarge(DioException error) {
+    if (error.response?.statusCode == 413) return true;
+    final body = (error.response?.data?.toString() ?? '').toLowerCase();
+    return body.contains('limit_file_size') || body.contains('file too large');
   }
 
   String _mapDioError(DioException error) {
