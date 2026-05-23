@@ -25,12 +25,14 @@ class ActionPlanTrackerScreen extends ConsumerStatefulWidget {
 
 class _ActionPlanTrackerScreenState
     extends ConsumerState<ActionPlanTrackerScreen> {
+  // Keys must be backend ActionPlan.status values (or 'all'); the tracker
+  // sends the key verbatim as ?status= (omitted for 'all').
   static const _tabs = [
     ('all', 'All'),
-    ('open', 'Open'),
-    ('pending', 'In Progress'),
-    ('closed', 'Closed'),
+    ('pending', 'Pending'),
+    ('submitted', 'In Progress'),
     ('overdue', 'Overdue'),
+    ('closed', 'Closed'),
   ];
 
   @override
