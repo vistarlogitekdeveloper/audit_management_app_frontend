@@ -66,7 +66,7 @@ class AppConstants {
     'Skill Matrix availability',
     'KAIZEN implementation',
     'Regular attendance submitted to HR',
-    'Random check of one process (describe which process)',
+    'Random check of one process',
     'Awareness of customer pain area',
     'Energy saving awareness',
     'Employee / Customer connect',
