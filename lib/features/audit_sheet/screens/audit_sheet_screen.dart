@@ -240,10 +240,23 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                           : ImageSource.gallery,
                                 );
                                 if (file == null) return;
-                                final compressed = await ImageService()
-                                    .compressToMax500Kb(file.path);
                                 final provider =
                                     ref.read(auditSheetProvider);
+                                String compressed;
+                                try {
+                                  compressed = await ImageService()
+                                      .compressToMax500Kb(file.path);
+                                } on OversizedImageException catch (e) {
+                                  // Can't get under the backend's 500 KB cap —
+                                  // don't upload. Keep the picked photo as a
+                                  // local preview so the auditor can see what
+                                  // they chose and pick a smaller one.
+                                  provider.setImage(parameter.index, file.path);
+                                  if (!context.mounted) return;
+                                  AppHelpers.showErrorSnackbar(
+                                      context, e.message);
+                                  return;
+                                }
                                 final ok = await provider.uploadImage(
                                     parameter.index, compressed);
                                 if (!context.mounted) return;
