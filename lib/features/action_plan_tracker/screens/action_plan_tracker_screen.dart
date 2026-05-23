@@ -112,8 +112,14 @@ class _ActionPlanTrackerScreenState
               ),
             )
           else if (provider.visible.isEmpty)
-            const AppPanel(
-              child: EmptyPanel(message: 'No action plans match this filter.'),
+            AppPanel(
+              child: EmptyPanel(
+                message: provider.filter == 'all'
+                    ? 'No action plans yet. A plan is created automatically '
+                        'when a project owner acknowledges an audit that has '
+                        'one or more failed parameters.'
+                    : 'No action plans match this filter.',
+              ),
             )
           else
             ...provider.visible.map(
