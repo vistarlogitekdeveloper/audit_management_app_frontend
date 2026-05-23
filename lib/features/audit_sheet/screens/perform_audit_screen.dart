@@ -39,11 +39,14 @@ class _PerformAuditScreenState extends ConsumerState<PerformAuditScreen> {
           final planStatus = audit.status.toLowerCase();
           final sheetStatus = (audit.auditSheetStatus ?? '').toLowerCase();
           
-          // An audit is active only if it's in a released/started state 
-          // AND the sheet itself hasn't been submitted/completed yet.
-          final isPlanActive = ['assigned', 'in progress', 'scheduled', 'released'].contains(planStatus);
-          final isSheetPending = !['submitted', 'completed', 'under_review', 'acknowledged'].contains(sheetStatus) && 
-                                audit.auditSheetSubmittedAt == null;
+          // An audit is active only if the plan is released (the only
+          // AuditPlan.status between create and submit) AND the sheet itself
+          // hasn't been submitted/acknowledged yet. 'submitted'/'acknowledged'
+          // are the only AuditSheet.status values that mean "done".
+          final isPlanActive = planStatus == 'released';
+          final isSheetPending =
+              !['submitted', 'acknowledged'].contains(sheetStatus) &&
+                  audit.auditSheetSubmittedAt == null;
 
           // If the plan is already marked submitted, completed or acknowledged at the plan level, skip it
           if (['submitted', 'completed', 'acknowledged', 'closed'].contains(planStatus)) continue;

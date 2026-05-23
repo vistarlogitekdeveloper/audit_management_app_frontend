@@ -20,19 +20,19 @@ class AppConstants {
     roleClusterManager,
   ];
 
-  // Audit statuses
+  // Audit statuses. Only values that appear in the backend Sequelize enums are
+  // kept here — anything the server never returns is dead and was removed.
+  //   AuditPlan.status:  draft, released, submitted, acknowledged, completed,
+  //                      closed, cancelled
+  //   AuditSheet.status: not_started, draft, submitted, acknowledged
+  static const String statusNotStarted = 'not_started';
   static const String statusDraft = 'draft';
   static const String statusReleased = 'released';
-  static const String statusScheduled = 'scheduled';
-  static const String statusInProgress = 'in_progress';
   static const String statusSubmitted = 'submitted';
   static const String statusAcknowledged = 'acknowledged';
-  static const String statusInReview = 'in_review';
-  static const String statusActionPlan = 'action_plan';
-  static const String statusOverdue = 'overdue';
   static const String statusCompleted = 'completed';
-  static const String statusAssigned = 'assigned';
-  static const String statusPendingReview = 'pending_review';
+  static const String statusClosed = 'closed';
+  static const String statusCancelled = 'cancelled';
 
   // Action plan statuses
   static const String apOpen = 'Open';
