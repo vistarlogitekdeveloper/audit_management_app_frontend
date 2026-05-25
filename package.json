@@ -1,0 +1,8 @@
+{
+  "name": "audit-management-app-frontend",
+  "private": true,
+  "description": "Vistar Audit — Flutter web. The `build` script lets Cloudflare Pages (which defaults to `npm run build`) compile the Flutter web bundle by cloning the Flutter SDK on first build, caching it for subsequent builds, then producing build/web. Set the Pages output directory to `build/web`.",
+  "scripts": {
+    "build": "if [ ! -d \"flutter\" ]; then git clone https://github.com/flutter/flutter.git --depth 1 --branch stable flutter; fi && export PATH=\"$PATH:$PWD/flutter/bin\" && flutter config --enable-web && flutter pub get && flutter build web --release --base-href /"
+  }
+}
