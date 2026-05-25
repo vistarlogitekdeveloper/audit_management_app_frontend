@@ -124,25 +124,49 @@ class ProjectLookupModel {
         location: json['project_location']?.toString() ?? '',
       );
     }
-    // Map from regular API response format
+    // The backend returns incharge / clusterManager as nested user objects
+    // ({id, name, email}); older/alternate shapes used flat string fields.
+    // Handle both so the name (not a stringified map) lands in the model.
+    final inchargeRaw = json['incharge'] ?? json['projectIncharge'];
+    final clusterRaw = json['clusterManager'] ?? json['cluster_manager'];
+
     return ProjectLookupModel(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
-      inchargeId:
-          json['project_incharge_id']?.toString() ??
+      inchargeId: json['project_incharge_id']?.toString() ??
           json['projectInchargeId']?.toString() ??
+          _idFrom(inchargeRaw) ??
           '',
-      inchargeName: json['projectIncharge']?.toString() ?? '',
-      inchargeEmail: json['projectInchargeEmail']?.toString() ?? '',
-      clusterManagerId:
-          json['cluster_manager_id']?.toString() ??
+      inchargeName: _nameFrom(inchargeRaw),
+      inchargeEmail: _emailFrom(inchargeRaw).isNotEmpty
+          ? _emailFrom(inchargeRaw)
+          : json['projectInchargeEmail']?.toString() ?? '',
+      clusterManagerId: json['cluster_manager_id']?.toString() ??
           json['clusterManagerId']?.toString() ??
+          _idFrom(clusterRaw) ??
           '',
-      clusterManagerName: json['clusterManager']?.toString() ?? '',
-      clusterManagerEmail: json['clusterManagerEmail']?.toString() ?? '',
+      clusterManagerName: _nameFrom(clusterRaw),
+      clusterManagerEmail: _emailFrom(clusterRaw).isNotEmpty
+          ? _emailFrom(clusterRaw)
+          : json['clusterManagerEmail']?.toString() ?? '',
       location: json['location']?.toString() ?? '',
     );
   }
+
+  // Pull a field from either a nested user object ({id, name, email}) or, for
+  // the name, a bare string. Returns '' / null when not present so the model
+  // never surfaces a stringified map.
+  static String _nameFrom(dynamic value) {
+    if (value is Map) return value['name']?.toString() ?? '';
+    if (value is String) return value;
+    return '';
+  }
+
+  static String _emailFrom(dynamic value) =>
+      value is Map ? value['email']?.toString() ?? '' : '';
+
+  static String? _idFrom(dynamic value) =>
+      value is Map ? value['id']?.toString() : null;
 }
 
 class UserLookupModel {
