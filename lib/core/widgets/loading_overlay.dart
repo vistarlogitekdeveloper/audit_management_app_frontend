@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import 'brand.dart';
 
-/// Action-triggered overlay (Save, Submit, etc). Shows a soft scrim with a
-/// branded card containing a small spinner + status text. Pointer events on
-/// the underlying screen are blocked while loading.
+/// Action-triggered overlay (Save, Submit, etc). Shows a soft scrim
+/// with the breathing S-mark + message. Pointer events on the
+/// underlying screen are blocked while loading.
 class LoadingOverlay extends StatelessWidget {
   const LoadingOverlay({
     super.key,
@@ -26,40 +27,35 @@ class LoadingOverlay extends StatelessWidget {
         IgnorePointer(
           ignoring: !isLoading,
           child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 160),
+            duration: const Duration(milliseconds: 200),
             opacity: isLoading ? 1 : 0,
-            child: ColoredBox(
-              color: Colors.black.withValues(alpha: 0.18),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.bgDeep.withValues(alpha: 0.62),
+              ),
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 14),
+                      horizontal: 22, vertical: 20),
                   decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.surface2,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.line2),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.black.withValues(alpha: 0.10),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
+                        color: AppColors.primary.withValues(alpha: 0.18),
+                        blurRadius: 32,
+                        offset: const Offset(0, 16),
                       ),
                     ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.primary),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
+                      const BrandLoader(size: 36),
+                      const SizedBox(width: 14),
                       Text(message,
-                          style: AppTextStyles.medium13.copyWith(
+                          style: AppTextStyles.medium14.copyWith(
                               color: AppColors.textPrimary)),
                     ],
                   ),
@@ -73,8 +69,8 @@ class LoadingOverlay extends StatelessWidget {
   }
 }
 
-/// Centered loading card used in place of a bare `CircularProgressIndicator`
-/// on full-screen Async views. Matches the [LoadingOverlay] visual style.
+/// Centered loading card used in place of a bare CircularProgressIndicator
+/// on full-screen Async views. Uses the breathing S.
 class LoadingState extends StatelessWidget {
   const LoadingState({super.key, this.message = 'Loading…'});
   final String message;
@@ -82,37 +78,15 @@ class LoadingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.4,
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(AppColors.primary),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(message,
-                style: AppTextStyles.medium13.copyWith(
-                    color: AppColors.textSecondary)),
-          ],
-        ),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: BrandLoader(size: 56, label: message),
       ),
     );
   }
 }
 
-/// Friendly retry surface used in the data-error path of an AsyncValue/
+/// Friendly retry surface used in the data-error path of an AsyncValue /
 /// FutureProvider. Pairs with [LoadingState] visually.
 class ErrorState extends StatelessWidget {
   const ErrorState({
@@ -128,35 +102,37 @@ class ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(22),
         constraints: const BoxConstraints(maxWidth: 420),
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
+          color: AppColors.surface2,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.line),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                color: AppColors.danger.withValues(alpha: 0.10),
+                color: AppColors.danger.withValues(alpha: 0.16),
                 shape: BoxShape.circle,
+                border: Border.all(
+                    color: AppColors.danger.withValues(alpha: 0.35)),
               ),
-              child: const Icon(Icons.cloud_off_rounded,
+              child: Icon(Icons.cloud_off_rounded,
                   color: AppColors.danger, size: 24),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Text("Couldn't load this view", style: AppTextStyles.title16),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: AppTextStyles.body12,
+              style: AppTextStyles.body13,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded, size: 18),

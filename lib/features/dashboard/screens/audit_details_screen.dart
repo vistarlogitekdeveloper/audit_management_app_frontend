@@ -30,7 +30,7 @@ class AuditDetailsScreen extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.search_off_outlined,
+                Icon(Icons.search_off_outlined,
                     color: AppColors.textMuted, size: 48),
                 const SizedBox(height: 12),
                 Text('Audit not found', style: AppTextStyles.title18),
@@ -246,16 +246,17 @@ class _DetailItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
-    this.color = AppColors.textSecondary,
+    this.color,
   });
 
   final IconData icon;
   final String label;
   final String value;
-  final Color color;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final tone = color ?? AppColors.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -269,10 +270,10 @@ class _DetailItem extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: tone.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 17, color: color),
+            child: Icon(icon, size: 17, color: tone),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -312,7 +313,7 @@ class _SubmittedNotice extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.hourglass_top_rounded,
+          Icon(Icons.hourglass_top_rounded,
               color: AppColors.warning, size: 22),
           const SizedBox(width: 12),
           Expanded(

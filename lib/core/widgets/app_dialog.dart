@@ -32,7 +32,12 @@ class AppDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: AppColors.line),
+      ),
       child: Stack(
         children: [
           Padding(
@@ -44,10 +49,12 @@ class AppDialog extends StatelessWidget {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.12),
+                    color: iconColor.withValues(alpha: 0.16),
                     shape: BoxShape.circle,
+                    border: Border.all(
+                        color: iconColor.withValues(alpha: 0.36)),
                   ),
-                  child: Icon(icon, color: iconColor, size: 40),
+                  child: Icon(icon, color: iconColor, size: 38),
                 ),
                 const SizedBox(height: 20),
                 Text(

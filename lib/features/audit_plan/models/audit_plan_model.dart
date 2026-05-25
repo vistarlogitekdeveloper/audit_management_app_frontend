@@ -124,22 +124,45 @@ class ProjectLookupModel {
         location: json['project_location']?.toString() ?? '',
       );
     }
-    // Map from regular API response format
+    // Map from regular API response format.
+    //
+    // `projectIncharge` / `clusterManager` may come back as either a bare
+    // string (just the name) or a nested {id, name, email} object — handle
+    // both, otherwise Map.toString() leaks `{id: …, name: …, email: …}` into
+    // the UI (audit calendar Cluster Manager column).
+    final incharge = json['projectIncharge'] ?? json['project_incharge'];
+    final cluster = json['clusterManager'] ?? json['cluster_manager'];
+    final inchargeMap = incharge is Map ? incharge : const {};
+    final clusterMap = cluster is Map ? cluster : const {};
+
+    String pickName(dynamic value) {
+      if (value is Map) return value['name']?.toString() ?? '';
+      return value?.toString() ?? '';
+    }
+
     return ProjectLookupModel(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       inchargeId:
           json['project_incharge_id']?.toString() ??
           json['projectInchargeId']?.toString() ??
+          inchargeMap['id']?.toString() ??
           '',
-      inchargeName: json['projectIncharge']?.toString() ?? '',
-      inchargeEmail: json['projectInchargeEmail']?.toString() ?? '',
+      inchargeName: pickName(incharge),
+      inchargeEmail:
+          json['projectInchargeEmail']?.toString() ??
+          inchargeMap['email']?.toString() ??
+          '',
       clusterManagerId:
           json['cluster_manager_id']?.toString() ??
           json['clusterManagerId']?.toString() ??
+          clusterMap['id']?.toString() ??
           '',
-      clusterManagerName: json['clusterManager']?.toString() ?? '',
-      clusterManagerEmail: json['clusterManagerEmail']?.toString() ?? '',
+      clusterManagerName: pickName(cluster),
+      clusterManagerEmail:
+          json['clusterManagerEmail']?.toString() ??
+          clusterMap['email']?.toString() ??
+          '',
       location: json['location']?.toString() ?? '',
     );
   }

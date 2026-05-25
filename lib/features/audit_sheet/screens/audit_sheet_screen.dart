@@ -368,7 +368,7 @@ class _SubmittedEditableBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.edit_note_rounded,
+          Icon(Icons.edit_note_rounded,
               color: AppColors.warning, size: 20),
           const SizedBox(width: 10),
           Expanded(
@@ -404,7 +404,7 @@ class _SheetLoadErrorBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.cloud_off_rounded,
+          Icon(Icons.cloud_off_rounded,
               color: AppColors.danger, size: 20),
           const SizedBox(width: 10),
           Expanded(
@@ -741,7 +741,7 @@ class _SectionWrapper extends StatelessWidget {
                     ),
                   ),
                   if (allDone)
-                    const Icon(
+                    Icon(
                       Icons.check_circle,
                       color: AppColors.secondary,
                       size: 20,
@@ -788,7 +788,7 @@ class _LiveScoreFooter extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        border: const Border(top: BorderSide(color: AppColors.border)),
+        border: Border(top: BorderSide(color: AppColors.border)),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withValues(alpha: 0.04),
@@ -906,7 +906,7 @@ class _ActionDock extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        border: const Border(top: BorderSide(color: AppColors.border)),
+        border: Border(top: BorderSide(color: AppColors.border)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),

@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../app_state/app_providers.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
+import '../core/theme/theme_controller.dart';
 import '../core/utils/helpers.dart';
+import '../core/widgets/brand.dart';
 import '../core/widgets/offline_banner.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../features/dashboard/providers/dashboard_provider.dart';
@@ -35,48 +37,53 @@ class MainScaffold extends ConsumerWidget {
     final title = _titleForLocation(location);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        // Keep the top bar / content out from under the device status bar &
-        // notch. bottom:false because the bottom nav bar handles its own
-        // safe inset.
-        bottom: false,
-        child: Column(
-          children: [
-            OfflineBanner(visible: offline),
-            Expanded(
-              child: Row(
-                children: [
-                  if (!isMobile)
-                    _Sidebar(items: items, location: location),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        _TopBar(
-                          title: title,
-                          location: location,
-                          unreadCount: notifications.unreadCount,
-                          showMenuHint: isMobile,
-                        ),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            padding: EdgeInsets.fromLTRB(
-                              isMobile ? 14 : 22,
-                              18,
-                              isMobile ? 14 : 22,
-                              24,
+      backgroundColor: AppColors.bgDeep,
+      body: Stack(
+        children: [
+          // Ambient dark canvas + faint S watermark + auroras.
+          const Positioned.fill(child: AmbientCanvas()),
+          SafeArea(
+            // bottom:false because the bottom nav handles its own
+            // safe inset.
+            bottom: false,
+            child: Column(
+              children: [
+                OfflineBanner(visible: offline),
+                Expanded(
+                  child: Row(
+                    children: [
+                      if (!isMobile)
+                        _Sidebar(items: items, location: location),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            _TopBar(
+                              title: title,
+                              location: location,
+                              unreadCount: notifications.unreadCount,
+                              showMenuHint: isMobile,
                             ),
-                            child: child,
-                          ),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: EdgeInsets.fromLTRB(
+                                  isMobile ? 14 : 22,
+                                  18,
+                                  isMobile ? 14 : 22,
+                                  24,
+                                ),
+                                child: child,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       bottomNavigationBar: isMobile
           ? _MobileNav(
@@ -113,6 +120,7 @@ class MainScaffold extends ConsumerWidget {
         return const [
           _NavItem('My Audits', '/auditor/dashboard', Icons.grid_view_rounded),
           _NavItem('Perform Audit', '/auditor/perform-audit', Icons.play_circle_outline),
+          _NavItem('Action Plans', '/auditor/action-plans', Icons.checklist_rounded),
           _NavItem('History', '/auditor/history', Icons.history_rounded),
           _NavItem('Reports', '/auditor/reports', Icons.bar_chart_outlined),
         ];
@@ -152,6 +160,7 @@ class MainScaffold extends ConsumerWidget {
     if (location.contains('/auditor/audit/')) return 'Audit Sheet';
     if (location.contains('/owner/review/')) return 'Owner Review';
     if (location.contains('/owner/action-plans')) return 'Action Plans';
+    if (location.contains('/auditor/action-plans')) return 'Action Plans';
     if (location.contains('/owner/action-plan/')) return 'Action Plan';
     if (location.contains('/notifications')) return 'Notifications';
     if (location.contains('/profile')) return 'Profile & settings';
@@ -179,7 +188,8 @@ class MainScaffold extends ConsumerWidget {
     } else if (location.contains('/admin/projects')) {
       ref.read(projectAdminProvider).fetchProjects();
     } else if (location.contains('/owner/action-plans') ||
-        location.contains('/cluster/action-plans')) {
+        location.contains('/cluster/action-plans') ||
+        location.contains('/auditor/action-plans')) {
       ref.read(actionPlanTrackerProvider).fetch();
     } else if (location.contains('/notifications')) {
       ref.read(notificationProvider).fetchNotifications();
@@ -208,15 +218,8 @@ class _TopBar extends ConsumerWidget {
       height: 76,
       padding: const EdgeInsets.symmetric(horizontal: 22),
       decoration: BoxDecoration(
-        color: AppColors.background,
-        border: const Border(bottom: BorderSide(color: AppColors.border)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.black.withValues(alpha: 0.025),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: AppColors.bgDeep.withValues(alpha: 0.78),
+        border: Border(bottom: BorderSide(color: AppColors.line)),
       ),
       child: Row(
         children: [
@@ -226,13 +229,19 @@ class _TopBar extends ConsumerWidget {
               height: 38,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
+                color: AppColors.surface2,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: AppColors.line2),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.30),
+                    blurRadius: 12,
+                  ),
+                ],
               ),
-              child: Image.asset(
-                'assets/logo.png',
-                fit: BoxFit.contain,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Image.asset(kSMarkAsset, fit: BoxFit.contain),
               ),
             ),
             const SizedBox(width: 12),
@@ -256,8 +265,11 @@ class _TopBar extends ConsumerWidget {
           _IconSurface(
             tooltip: 'Refresh data',
             onTap: () => MainScaffold._handlePageRefresh(ref, location),
-            child: const Icon(Icons.refresh_rounded, size: 21),
+            child: Icon(Icons.refresh_rounded, size: 20,
+                color: AppColors.textPrimary),
           ),
+          const SizedBox(width: 10),
+          const _ThemeToggleButton(),
           const SizedBox(width: 10),
           _IconSurface(
             tooltip: 'Notifications',
@@ -265,13 +277,14 @@ class _TopBar extends ConsumerWidget {
             child: Badge(
               isLabelVisible: unreadCount > 0,
               label: Text('$unreadCount'),
-              child: const Icon(Icons.notifications_none_rounded, size: 21),
+              child: Icon(Icons.notifications_none_rounded, size: 20,
+                  color: AppColors.textPrimary),
             ),
           ),
           const SizedBox(width: 10),
           if (user != null && MediaQuery.sizeOf(context).width >= 760) ...[
             InkWell(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               onTap: () => context.go('/profile'),
               child: _UserChip(
                 name: user.name,
@@ -297,7 +310,8 @@ class _TopBar extends ConsumerWidget {
                 if (context.mounted) context.go('/login');
               }
             },
-            child: const Icon(Icons.logout_rounded, size: 20),
+            child: Icon(Icons.logout_rounded, size: 19,
+                color: AppColors.textPrimary),
           ),
         ],
       ),
@@ -330,15 +344,15 @@ class _IconSurface extends StatelessWidget {
       message: tooltip,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
           width: 42,
           height: 42,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
+            color: AppColors.surface2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.line),
           ),
           child: child,
         ),
@@ -366,21 +380,14 @@ class _UserChip extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 230),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.line),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(
-            radius: 15,
-            backgroundColor: color,
-            child: Text(
-              initials,
-              style: AppTextStyles.medium12.copyWith(color: AppColors.white),
-            ),
-          ),
+          _RibbonAvatar(initials: initials, fallback: color),
           const SizedBox(width: 9),
           Flexible(
             child: Column(
@@ -408,6 +415,34 @@ class _UserChip extends StatelessWidget {
   }
 }
 
+/// Rounded-square avatar with a ribbon-gradient fill — the design
+/// system's signature avatar treatment for chrome rows.
+class _RibbonAvatar extends StatelessWidget {
+  const _RibbonAvatar({required this.initials, required this.fallback});
+  final String initials;
+  final Color fallback;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        gradient: ribbonGradient(),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: AppTextStyles.medium12.copyWith(
+          color: AppColors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
 class _Sidebar extends ConsumerWidget {
   const _Sidebar({required this.items, required this.location});
 
@@ -420,42 +455,54 @@ class _Sidebar extends ConsumerWidget {
     return Container(
       width: 256,
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: const Border(right: BorderSide(color: AppColors.border)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.black.withValues(alpha: 0.035),
-            blurRadius: 20,
-            offset: const Offset(10, 0),
-          ),
-        ],
+        color: AppColors.bgRaised.withValues(alpha: 0.82),
+        border: Border(right: BorderSide(color: AppColors.line)),
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppColors.border)),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.line)),
             ),
             child: const _BrandLockup(),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
             child: Row(
               children: [
-                Text('Workspace', style: AppTextStyles.medium12),
+                Text('WORKSPACE',
+                    style: AppTextStyles.eyebrow),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.greenTint,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.28)),
                   ),
-                  child: Text(
-                    'Live',
-                    style: AppTextStyles.medium12.copyWith(
-                      color: AppColors.secondary,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Live',
+                        style: AppTextStyles.medium12.copyWith(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -478,7 +525,7 @@ class _Sidebar extends ConsumerWidget {
                   },
                 );
               },
-              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              separatorBuilder: (_, __) => const SizedBox(height: 4),
               itemCount: items.length,
             ),
           ),
@@ -487,22 +534,19 @@ class _Sidebar extends ConsumerWidget {
               padding: const EdgeInsets.all(14),
               child: InkWell(
                 onTap: () => context.go('/profile'),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.greyTint,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
+                    color: AppColors.surface2,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.line),
                   ),
                   child: Row(
                     children: [
-                      CircleAvatar(
-                        backgroundColor: AppHelpers.avatarColorByRole(user.role),
-                        child: Text(
-                          user.avatarInitials,
-                          style: AppTextStyles.medium12.copyWith(color: AppColors.white),
-                        ),
+                      _RibbonAvatar(
+                        initials: user.avatarInitials,
+                        fallback: AppHelpers.avatarColorByRole(user.role),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -524,7 +568,7 @@ class _Sidebar extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right_rounded,
+                      Icon(Icons.chevron_right_rounded,
                           color: AppColors.textMuted, size: 18),
                     ],
                   ),
@@ -549,20 +593,20 @@ class _BrandLockup extends StatelessWidget {
           height: 42,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
+            color: AppColors.surface2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.line2),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.18),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
+                color: AppColors.primary.withValues(alpha: 0.38),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           child: Padding(
             padding: const EdgeInsets.all(3),
-            child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+            child: Image.asset(kSMarkAsset, fit: BoxFit.contain),
           ),
         ),
         const SizedBox(width: 12),
@@ -571,6 +615,7 @@ class _BrandLockup extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Vistar Audit', style: AppTextStyles.title16),
+              const SizedBox(height: 2),
               Text('Audit command', style: AppTextStyles.body11),
             ],
           ),
@@ -595,31 +640,54 @@ class _SidebarItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
+        duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         decoration: BoxDecoration(
-          color: selected ? AppColors.blueTint : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.10)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? AppColors.primary.withValues(alpha: 0.22) : Colors.transparent,
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.24)
+                : Colors.transparent,
           ),
         ),
         child: Row(
           children: [
+            // Ribbon-gradient active rail (3px on selected, transparent otherwise).
             AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              width: 34,
-              height: 34,
+              duration: const Duration(milliseconds: 180),
+              width: 3,
+              height: 22,
+              margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(
-                color: selected ? AppColors.primary : AppColors.greyTint,
-                borderRadius: BorderRadius.circular(8),
+                gradient: selected ? ribbonGradient(
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                ) : null,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.primary.withValues(alpha: 0.18)
+                    : AppColors.surface2,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(
+                  color: selected
+                      ? AppColors.primary.withValues(alpha: 0.36)
+                      : AppColors.line,
+                ),
               ),
               child: Icon(
                 item.icon,
-                size: 18,
-                color: selected ? AppColors.white : AppColors.textSecondary,
+                size: 17,
+                color: selected ? AppColors.primary : AppColors.textSecondary,
               ),
             ),
             const SizedBox(width: 10),
@@ -629,21 +697,11 @@ class _SidebarItem extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.medium13.copyWith(
-                  color: selected ? AppColors.primary : AppColors.textPrimary,
+                  color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ),
-            if (selected) ...[
-              const SizedBox(width: 8),
-              Container(
-                width: 6,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -664,15 +722,15 @@ class _MobileNav extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-      decoration: const BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border(top: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: AppColors.bgRaised,
+        border: Border(top: BorderSide(color: AppColors.line)),
       ),
       child: NavigationBar(
         selectedIndex: selectedIndex.clamp(0, items.length - 1),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        indicatorColor: AppColors.blueTint,
+        indicatorColor: AppColors.primary.withValues(alpha: 0.18),
         onDestinationSelected: (index) {
           if (index == selectedIndex) {
             MainScaffold._handlePageRefresh(ref, items[index].route);
@@ -681,7 +739,7 @@ class _MobileNav extends ConsumerWidget {
         },
         destinations: items.map((item) {
           return NavigationDestination(
-            icon: Icon(item.icon),
+            icon: Icon(item.icon, color: AppColors.textMuted),
             selectedIcon: Icon(item.icon, color: AppColors.primary),
             label: item.label,
           );
@@ -697,4 +755,210 @@ class _NavItem {
   final String label;
   final String route;
   final IconData icon;
+}
+
+/// Single-tap theme cycler — moves dark → light → system → dark.
+/// The icon is the *current* mode's glyph (moon / sun / monitor) so
+/// the affordance reads as "what's active" rather than "what's next."
+/// Long-press exposes the explicit picker for users who want a
+/// specific mode without cycling.
+class _ThemeToggleButton extends ConsumerWidget {
+  const _ThemeToggleButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.watch(themeControllerProvider);
+    final (icon, label) = _glyphFor(controller.mode);
+
+    return Tooltip(
+      message: 'Theme — $label (tap to change)',
+      child: InkWell(
+        onTap: () => controller.cycle(),
+        onLongPress: () => _showPicker(context, controller),
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.surface2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (child, anim) => ScaleTransition(
+              scale: anim,
+              child: FadeTransition(opacity: anim, child: child),
+            ),
+            child: Icon(
+              icon,
+              key: ValueKey(icon.codePoint),
+              size: 19,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  (IconData, String) _glyphFor(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return (Icons.light_mode_rounded, 'Light');
+      case ThemeMode.dark:
+        return (Icons.dark_mode_rounded, 'Dark');
+      case ThemeMode.system:
+        return (Icons.brightness_auto_rounded, 'System');
+    }
+  }
+
+  Future<void> _showPicker(
+      BuildContext context, ThemeController controller) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: false,
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Row(
+                    children: [
+                      Text('Appearance', style: AppTextStyles.title16),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: () => Navigator.of(sheetCtx).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                _ThemeChoice(
+                  active: controller.mode == ThemeMode.light,
+                  icon: Icons.light_mode_rounded,
+                  title: 'Light',
+                  subtitle: 'Paper-white surfaces, ribbon ink',
+                  onTap: () {
+                    controller.setMode(ThemeMode.light);
+                    Navigator.of(sheetCtx).pop();
+                  },
+                ),
+                const SizedBox(height: 8),
+                _ThemeChoice(
+                  active: controller.mode == ThemeMode.dark,
+                  icon: Icons.dark_mode_rounded,
+                  title: 'Dark',
+                  subtitle: 'Near-black canvas with the ribbon swoosh',
+                  onTap: () {
+                    controller.setMode(ThemeMode.dark);
+                    Navigator.of(sheetCtx).pop();
+                  },
+                ),
+                const SizedBox(height: 8),
+                _ThemeChoice(
+                  active: controller.mode == ThemeMode.system,
+                  icon: Icons.brightness_auto_rounded,
+                  title: 'System',
+                  subtitle: 'Follows your device setting',
+                  onTap: () {
+                    controller.setMode(ThemeMode.system);
+                    Navigator.of(sheetCtx).pop();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ThemeChoice extends StatelessWidget {
+  const _ThemeChoice({
+    required this.active,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final bool active;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: active
+              ? AppColors.primary.withValues(alpha: 0.10)
+              : AppColors.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: active
+                ? AppColors.primary.withValues(alpha: 0.36)
+                : AppColors.line,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: active
+                    ? AppColors.primary.withValues(alpha: 0.18)
+                    : AppColors.surface3,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: active
+                      ? AppColors.primary.withValues(alpha: 0.36)
+                      : AppColors.line,
+                ),
+              ),
+              child: Icon(icon,
+                  size: 19,
+                  color: active ? AppColors.primary : AppColors.textSecondary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTextStyles.medium14.copyWith(
+                      color:
+                          active ? AppColors.primary : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: AppTextStyles.body12),
+                ],
+              ),
+            ),
+            if (active)
+              const Icon(Icons.check_circle_rounded,
+                  color: AppColors.primary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
 }

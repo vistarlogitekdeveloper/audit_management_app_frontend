@@ -171,6 +171,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const AuditorReportsScreen(),
           ),
           GoRoute(
+            // Read-only across-project view of ongoing action plans. Reuses the
+            // owner tracker screen — auditors monitor progress; corrective
+            // actions are still owned/edited by project owners.
+            path: '/auditor/action-plans',
+            builder: (_, __) =>
+                const ActionPlanTrackerScreen(readOnly: true),
+          ),
+          GoRoute(
             path: '/auditor/report/:auditId',
             builder: (_, state) => AuditorReportViewScreen(
               auditId: state.pathParameters['auditId']!,

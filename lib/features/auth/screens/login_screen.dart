@@ -5,11 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/api_constants.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../core/utils/validators.dart';
+import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_input.dart';
+import '../../../core/widgets/brand.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -24,6 +28,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscure = true;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Restore the "Remember me" state on first frame. Reading via
+    // ref.read is safe in initState because SharedPreferences was
+    // already loaded synchronously before runApp().
+    final prefs = ref.read(sharedPreferencesProvider);
+    _rememberMe = prefs.getBool(AppConstants.rememberMeKey) ?? false;
+    if (_rememberMe) {
+      _emailController.text =
+          prefs.getString(AppConstants.rememberedEmailKey) ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -32,27 +51,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _persistRememberMe(String email) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (_rememberMe) {
+      await prefs.setBool(AppConstants.rememberMeKey, true);
+      await prefs.setString(AppConstants.rememberedEmailKey, email);
+    } else {
+      await prefs.remove(AppConstants.rememberMeKey);
+      await prefs.remove(AppConstants.rememberedEmailKey);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 900;
-            final horizontalPadding = isWide ? 40.0 : 20.0;
-            final verticalPadding = isWide ? 32.0 : 20.0;
-            final availableHeight =
-                constraints.maxHeight - (verticalPadding * 2);
-            final double? panelHeight =
-                isWide ? availableHeight.clamp(560.0, 680.0).toDouble() : null;
+      backgroundColor: AppColors.bgDeep,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AmbientCanvas()),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 900;
+                final horizontalPadding = isWide ? 40.0 : 20.0;
+                final verticalPadding = isWide ? 32.0 : 20.0;
+                final availableHeight =
+                    constraints.maxHeight - (verticalPadding * 2);
+                final double? panelHeight = isWide
+                    ? availableHeight.clamp(560.0, 680.0).toDouble()
+                    : null;
 
-            return Stack(
-              children: [
-                const Positioned.fill(child: _LoginBackground()),
-                Center(
+                return Center(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.symmetric(
                       horizontal: horizontalPadding,
@@ -65,43 +96,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.border),
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.line),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.black.withValues(alpha: 0.08),
-                              blurRadius: 28,
-                              offset: const Offset(0, 18),
+                              color: AppColors.primary.withValues(alpha: 0.20),
+                              blurRadius: 60,
+                              offset: const Offset(0, 32),
                             ),
                           ],
                         ),
-                        child:
-                            isWide
-                                ? SizedBox(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: isWide
+                              ? SizedBox(
                                   height: panelHeight,
                                   child: Row(
                                     children: [
-                                      const Expanded(child: _BrandPanel()),
+                                      const Expanded(
+                                          flex: 105, child: _BrandPanel()),
                                       Expanded(
-                                        child: Center(
-                                          child: SingleChildScrollView(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 24,
-                                            ),
-                                            child: _LoginFormPanel(
-                                              formKey: _formKey,
-                                              emailController: _emailController,
-                                              passwordController:
-                                                  _passwordController,
-                                              obscure: _obscure,
-                                              isLoading: auth.isLoading,
-                                              onTogglePassword: () {
-                                                setState(
-                                                  () => _obscure = !_obscure,
-                                                );
-                                              },
-                                              onSubmit: _submitLogin,
+                                        flex: 95,
+                                        child: Container(
+                                          color: AppColors.bgRaised,
+                                          child: Center(
+                                            child: SingleChildScrollView(
+                                              padding: const EdgeInsets
+                                                  .symmetric(vertical: 24),
+                                              child: _LoginFormPanel(
+                                                formKey: _formKey,
+                                                emailController:
+                                                    _emailController,
+                                                passwordController:
+                                                    _passwordController,
+                                                obscure: _obscure,
+                                                isLoading: auth.isLoading,
+                                                rememberMe: _rememberMe,
+                                                onToggleRemember: (v) {
+                                                  setState(() =>
+                                                      _rememberMe = v);
+                                                },
+                                                onTogglePassword: () {
+                                                  setState(() =>
+                                                      _obscure = !_obscure);
+                                                },
+                                                onSubmit: _submitLogin,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -109,39 +150,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ],
                                   ),
                                 )
-                                : _LoginFormPanel(
-                                  formKey: _formKey,
-                                  emailController: _emailController,
-                                  passwordController: _passwordController,
-                                  obscure: _obscure,
-                                  isLoading: auth.isLoading,
-                                  showMobileBrand: true,
-                                  onTogglePassword: () {
-                                    setState(() => _obscure = !_obscure);
-                                  },
-                                  onSubmit: _submitLogin,
+                              : Container(
+                                  color: AppColors.bgRaised,
+                                  child: _LoginFormPanel(
+                                    formKey: _formKey,
+                                    emailController: _emailController,
+                                    passwordController: _passwordController,
+                                    obscure: _obscure,
+                                    isLoading: auth.isLoading,
+                                    showMobileBrand: true,
+                                    rememberMe: _rememberMe,
+                                    onToggleRemember: (v) {
+                                      setState(() => _rememberMe = v);
+                                    },
+                                    onTogglePassword: () {
+                                      setState(() => _obscure = !_obscure);
+                                    },
+                                    onSubmit: _submitLogin,
+                                  ),
                                 ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
-        ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Future<void> _submitLogin() async {
     if (!_formKey.currentState!.validate()) return;
+    final email = _emailController.text.trim();
     try {
-      await ref
-          .read(authProvider)
-          .login(
-            _emailController.text.trim(),
-            _passwordController.text,
-          );
+      await ref.read(authProvider).login(email, _passwordController.text);
+      // Persist (or clear) the remembered email only on a successful
+      // login — we never want to "remember" an email the user fat-
+      // fingered into a failing attempt.
+      await _persistRememberMe(email);
       if (!mounted) return;
       context.go(ref.read(authProvider).homeRouteForRole());
     } catch (error) {
@@ -158,6 +207,8 @@ class _LoginFormPanel extends StatelessWidget {
     required this.passwordController,
     required this.obscure,
     required this.isLoading,
+    required this.rememberMe,
+    required this.onToggleRemember,
     required this.onTogglePassword,
     required this.onSubmit,
     this.showMobileBrand = false,
@@ -168,6 +219,8 @@ class _LoginFormPanel extends StatelessWidget {
   final TextEditingController passwordController;
   final bool obscure;
   final bool isLoading;
+  final bool rememberMe;
+  final ValueChanged<bool> onToggleRemember;
   final VoidCallback onTogglePassword;
   final Future<void> Function() onSubmit;
   final bool showMobileBrand;
@@ -175,7 +228,7 @@ class _LoginFormPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.all(showMobileBrand ? 22 : 36),
+      padding: EdgeInsets.all(showMobileBrand ? 24 : 40),
       child: Form(
         key: formKey,
         child: Column(
@@ -187,12 +240,12 @@ class _LoginFormPanel extends StatelessWidget {
               const SizedBox(height: 28),
             ],
             Text('Sign in', style: AppTextStyles.headline22),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               'Access audit plans, reviews, action items, and reports.',
               style: AppTextStyles.body13,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             AppInput(
               label: 'Email address',
               hint: 'name@company.com',
@@ -210,53 +263,38 @@ class _LoginFormPanel extends StatelessWidget {
               suffixIcon: IconButton(
                 tooltip: obscure ? 'Show password' : 'Hide password',
                 onPressed: onTogglePassword,
-                icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => context.push('/forgot-password'),
-                child: Text(
-                  'Forgot password?',
-                  style: AppTextStyles.medium13.copyWith(
-                    color: AppColors.primary,
-                  ),
+                icon: Icon(
+                  obscure ? Icons.visibility_off : Icons.visibility,
+                  color: AppColors.textMuted,
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: FilledButton.icon(
-                onPressed: isLoading ? null : onSubmit,
-                icon:
-                    isLoading
-                        ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.white,
-                          ),
-                        )
-                        : const Icon(Icons.login, size: 18),
-                label: Text(
-                  isLoading ? 'Signing in' : 'Sign in securely',
-                  style: AppTextStyles.medium14.copyWith(
-                    color: AppColors.white,
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                _RememberMeToggle(
+                  value: rememberMe,
+                  onChanged: onToggleRemember,
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => context.push('/forgot-password'),
+                  child: Text(
+                    'Forgot password?',
+                    style: AppTextStyles.medium13.copyWith(
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            AppButton(
+              label: isLoading ? 'Signing in' : 'Sign in securely',
+              icon: isLoading ? null : Icons.login_rounded,
+              isLoading: isLoading,
+              isFullWidth: true,
+              onPressed: isLoading ? null : onSubmit,
             ),
             // Dev-only SMTP probe — compiled out of release/profile builds
             // so production users can never trigger backend test emails.
@@ -264,6 +302,65 @@ class _LoginFormPanel extends StatelessWidget {
               const SizedBox(height: 14),
               const _TestSmtpButton(),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Remember me" toggle — a hand-rolled checkbox + label so the
+/// affordance sits comfortably on the dark surface (Material's
+/// Checkbox label spacing reads cramped against the form). Tapping
+/// either the box or the label flips the value.
+class _RememberMeToggle extends StatelessWidget {
+  const _RememberMeToggle({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: value ? AppColors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(
+                  color: value ? AppColors.primary : AppColors.line2,
+                  width: 1.4,
+                ),
+                boxShadow: value
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: value
+                  ? const Icon(Icons.check_rounded,
+                      size: 14, color: AppColors.white)
+                  : null,
+            ),
+            const SizedBox(width: 9),
+            Text(
+              'Remember me',
+              style: AppTextStyles.medium13.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
           ],
         ),
       ),
@@ -298,7 +395,7 @@ class _TestSmtpButtonState extends State<_TestSmtpButton> {
         content: Text(ok
             ? 'Test email sent to Flutter.developer@vistarlogitek.com'
             : 'SMTP failed: ${data['data']?['error'] ?? 'unknown error'}'),
-        backgroundColor: ok ? AppColors.secondary : AppColors.danger,
+        backgroundColor: ok ? AppColors.success : AppColors.danger,
       ));
     } catch (e) {
       if (!mounted) return;
@@ -329,8 +426,8 @@ class _TestSmtpButtonState extends State<_TestSmtpButton> {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(double.infinity, 40),
         foregroundColor: AppColors.textSecondary,
-        side: const BorderSide(color: AppColors.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        side: BorderSide(color: AppColors.line),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -343,53 +440,145 @@ class _BrandPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       constraints: const BoxConstraints(minHeight: 560),
-      padding: const EdgeInsets.all(36),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primaryDark, AppColors.primary],
-        ),
-        borderRadius: BorderRadius.horizontal(left: Radius.circular(8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: BoxDecoration(color: AppColors.surface),
+      child: Stack(
         children: [
-          const _CompactBrandHeader(onDark: true),
-          const Spacer(),
-          Text(
-            'Audit control that stays clear under pressure.',
-            style: AppTextStyles.headline22.copyWith(
-              color: AppColors.white,
-              fontSize: 30,
-              height: 1.18,
+          // Radial brand glows (purple, pink, amber).
+          const Positioned.fill(child: _BrandGlows()),
+          // Huge rotated faint S behind the content.
+          Positioned(
+            right: -120,
+            top: -40,
+            bottom: -40,
+            child: Transform.rotate(
+              angle: 6 * 3.1415926 / 180,
+              child: Opacity(
+                opacity: 0.16,
+                child: SizedBox(
+                  width: 620,
+                  child: Image.asset(kSMarkAsset, fit: BoxFit.contain),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 14),
-          Text(
-            'Plan audits, capture findings, track action plans, and keep every stakeholder aligned from one workspace.',
-            style: AppTextStyles.body14.copyWith(
-              color: AppColors.white.withValues(alpha: 0.84),
-              height: 1.55,
+          Padding(
+            padding: const EdgeInsets.all(40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 180,
+                      child: Image.asset(kWordmarkAsset, fit: BoxFit.contain),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                // Pitch headline with a single ribbon-gradient accent word.
+                RichText(
+                  text: TextSpan(
+                    style: AppTextStyles.headline22.copyWith(
+                      fontSize: 32,
+                      height: 1.18,
+                      color: AppColors.textPrimary,
+                    ),
+                    children: [
+                      const TextSpan(text: 'Audit '),
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.baseline,
+                        baseline: TextBaseline.alphabetic,
+                        child: RibbonText(
+                          'control',
+                          style: AppTextStyles.headline22.copyWith(
+                            fontSize: 32,
+                            height: 1.18,
+                          ),
+                        ),
+                      ),
+                      const TextSpan(text: ' that stays clear under pressure.'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Plan audits, capture findings, track action plans, and keep every stakeholder aligned from one workspace.',
+                  style: AppTextStyles.body14.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.55,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                const _AuditPreview(),
+                const Spacer(),
+                Row(
+                  children: [
+                    _MetricPill(
+                      icon: Icons.verified_outlined,
+                      label: 'Live status',
+                      color: AppColors.success,
+                    ),
+                    const SizedBox(width: 10),
+                    _MetricPill(
+                      icon: Icons.schedule_outlined,
+                      label: 'Due tracking',
+                      color: AppColors.warning,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 30),
-          const _AuditPreview(),
-          const Spacer(),
-          const Row(
-            children: [
-              _MetricPill(
-                icon: Icons.verified_outlined,
-                label: 'Live status',
-                color: AppColors.secondary,
+        ],
+      ),
+    );
+  }
+}
+
+class _BrandGlows extends StatelessWidget {
+  const _BrandGlows();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(-0.7, -0.8),
+                radius: 0.8,
+                colors: [
+                  AppColors.ribbonViolet.withValues(alpha: 0.32),
+                  Colors.transparent,
+                ],
               ),
-              SizedBox(width: 10),
-              _MetricPill(
-                icon: Icons.schedule_outlined,
-                label: 'Due tracking',
-                color: AppColors.warning,
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0.9, 0.9),
+                radius: 0.9,
+                colors: [
+                  AppColors.ribbonPink.withValues(alpha: 0.22),
+                  Colors.transparent,
+                ],
               ),
-            ],
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0.4, -1.0),
+                radius: 0.7,
+                colors: [
+                  AppColors.ribbonAmber.withValues(alpha: 0.16),
+                  Colors.transparent,
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -398,14 +587,10 @@ class _BrandPanel extends StatelessWidget {
 }
 
 class _CompactBrandHeader extends StatelessWidget {
-  const _CompactBrandHeader({this.onDark = false});
-
-  final bool onDark;
+  const _CompactBrandHeader();
 
   @override
   Widget build(BuildContext context) {
-    final foreground = onDark ? AppColors.white : AppColors.textPrimary;
-
     return Row(
       children: [
         Container(
@@ -413,40 +598,30 @@ class _CompactBrandHeader extends StatelessWidget {
           height: 44,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: onDark
-                ? Border.all(color: AppColors.white.withValues(alpha: 0.30))
-                : Border.all(color: AppColors.border),
+            color: AppColors.surface2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.line2),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: onDark ? 0.0 : 0.15),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                color: AppColors.primary.withValues(alpha: 0.40),
+                blurRadius: 16,
               ),
             ],
           ),
           child: Padding(
             padding: const EdgeInsets.all(3),
-            child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+            child: Image.asset(kSMarkAsset, fit: BoxFit.contain),
           ),
         ),
         const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Vistar Audit',
-              style: AppTextStyles.title18.copyWith(color: foreground),
-            ),
+            Text('Vistar Audit', style: AppTextStyles.title18),
+            const SizedBox(height: 2),
             Text(
               'Management console',
-              style: AppTextStyles.body12.copyWith(
-                color:
-                    onDark
-                        ? AppColors.white.withValues(alpha: 0.72)
-                        : AppColors.textSecondary,
-              ),
+              style: AppTextStyles.body12,
             ),
           ],
         ),
@@ -463,9 +638,9 @@ class _AuditPreview extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.white.withValues(alpha: 0.18)),
+        color: AppColors.surface2.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.line2),
       ),
       child: const Column(
         children: [
@@ -511,10 +686,12 @@ class _PreviewRow extends StatelessWidget {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(8),
+            color: AppColors.primary.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.30)),
           ),
-          child: Icon(icon, color: AppColors.white, size: 20),
+          child: Icon(icon, color: AppColors.primary, size: 19),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -523,14 +700,12 @@ class _PreviewRow extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: AppTextStyles.medium13.copyWith(color: AppColors.white),
+                style: AppTextStyles.medium13,
               ),
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: AppTextStyles.body12.copyWith(
-                  color: AppColors.white.withValues(alpha: 0.72),
-                ),
+                style: AppTextStyles.body12,
               ),
             ],
           ),
@@ -556,57 +731,25 @@ class _MetricPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: AppColors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 17),
+          Icon(icon, color: color, size: 16),
           const SizedBox(width: 7),
           Text(
             label,
-            style: AppTextStyles.medium12.copyWith(color: AppColors.white),
+            style: AppTextStyles.medium12.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
           ),
         ],
       ),
     );
   }
-}
-
-class _LoginBackground extends StatelessWidget {
-  const _LoginBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFE9F1FC), AppColors.white, Color(0xFFEAF3DE)],
-        ),
-      ),
-      child: CustomPaint(painter: _GridPainter()),
-    );
-  }
-}
-
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = AppColors.primary.withValues(alpha: 0.045)
-          ..strokeWidth = 1;
-
-    for (double x = 0; x < size.width; x += 44) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += 44) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

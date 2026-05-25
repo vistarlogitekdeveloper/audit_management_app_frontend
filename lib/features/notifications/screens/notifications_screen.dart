@@ -64,7 +64,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 24),
                       child: Column(
                         children: [
-                          const Icon(Icons.cloud_off_rounded,
+                          Icon(Icons.cloud_off_rounded,
                               color: AppColors.danger, size: 32),
                           const SizedBox(height: 10),
                           Text(

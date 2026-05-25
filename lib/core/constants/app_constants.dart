@@ -7,6 +7,13 @@ class AppConstants {
   static const String userNameKey = 'user_name';
   static const String userEmailKey = 'user_email';
   static const String notificationsAskedKey = 'notifications_permission_requested';
+  // "Remember me" on login — stores the flag and the email we prefill with
+  // on the next launch. We intentionally never persist the password.
+  static const String rememberMeKey = 'login_remember_me';
+  static const String rememberedEmailKey = 'login_remembered_email';
+  // Active theme mode: "system" | "light" | "dark". Defaults to dark
+  // (the launch experience for Vistar Premium) when unset.
+  static const String themeModeKey = 'app_theme_mode';
 
   // Roles
   static const String roleAdmin = 'Admin';

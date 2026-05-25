@@ -94,7 +94,7 @@ class _ActionPlanTrackerScreenState
             AppPanel(
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline,
+                  Icon(Icons.error_outline,
                       color: AppColors.danger, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
@@ -222,7 +222,7 @@ class _PlanCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.event_busy_outlined,
+                Icon(Icons.event_busy_outlined,
                     size: 14, color: AppColors.textMuted),
                 const SizedBox(width: 4),
                 Text(

@@ -228,13 +228,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     label: 'App version',
                     value: '1.0.0',
                   ),
-                  const _AboutLine(
+                  _AboutLine(
                     label: 'Terms of Service',
                     value: 'Tap to read the latest terms',
                     trailing: Icon(Icons.chevron_right_rounded,
                         color: AppColors.textMuted),
                   ),
-                  const _AboutLine(
+                  _AboutLine(
                     label: 'Privacy Policy',
                     value: 'How we handle your data',
                     trailing: Icon(Icons.chevron_right_rounded,

@@ -224,7 +224,7 @@ class _NoPlanBanner extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.info_outline, color: AppColors.warning),
+              Icon(Icons.info_outline, color: AppColors.warning),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(

@@ -7,6 +7,11 @@ enum AppButtonVariant { primary, ghost, danger, success }
 
 enum AppButtonSize { regular, small, large }
 
+/// Branded button. The primary variant uses the signature ribbon
+/// gradient (painted via [DecoratedBox] since Material's stock
+/// ButtonStyle cannot host a gradient), with a soft pink halo. Ghost
+/// is the dark outlined variant; danger / success use flat semantic
+/// colors so warning actions stay legible.
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
@@ -30,10 +35,9 @@ class AppButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final disabled = isLoading || onPressed == null;
-    final palette = _palette(variant);
     final dims = _dimensions(size);
 
-    final child = AnimatedSwitcher(
+    final content = AnimatedSwitcher(
       duration: const Duration(milliseconds: 140),
       transitionBuilder: (c, a) =>
           FadeTransition(opacity: a, child: ScaleTransition(scale: a, child: c)),
@@ -49,13 +53,14 @@ class AppButton extends StatelessWidget {
                   height: dims.iconSize,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(palette.fg),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(_foreground(variant)),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   'Working…',
-                  style: dims.labelStyle.copyWith(color: palette.fg),
+                  style: dims.labelStyle.copyWith(color: _foreground(variant)),
                 ),
               ],
             )
@@ -66,64 +71,88 @@ class AppButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: dims.iconSize, color: palette.fg),
+                  Icon(icon, size: dims.iconSize, color: _foreground(variant)),
                   const SizedBox(width: 8),
                 ],
                 Text(label,
-                    style: dims.labelStyle.copyWith(color: palette.fg)),
+                    style: dims.labelStyle.copyWith(color: _foreground(variant))),
               ],
             ),
     );
 
-    final shape =
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(10));
-    final minSize = Size(isFullWidth ? double.infinity : 0, dims.minHeight);
+    final Widget body;
+    if (variant == AppButtonVariant.primary) {
+      body = _RibbonButton(
+        onPressed: disabled ? null : onPressed,
+        height: dims.minHeight,
+        padding: dims.padding,
+        isFullWidth: isFullWidth,
+        child: content,
+      );
+    } else {
+      final palette = _palette(variant);
+      final shape =
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(11));
+      final minSize = Size(isFullWidth ? double.infinity : 0, dims.minHeight);
 
-    final Widget button = variant == AppButtonVariant.ghost
-        ? OutlinedButton(
-            onPressed: disabled ? null : onPressed,
-            style: OutlinedButton.styleFrom(
-              backgroundColor: palette.bg,
-              foregroundColor: palette.fg,
-              minimumSize: minSize,
-              shape: shape,
-              side: BorderSide(color: palette.border ?? AppColors.border),
-              padding: dims.padding,
-            ),
-            child: child,
-          )
-        : FilledButton(
-            onPressed: disabled ? null : onPressed,
-            style: FilledButton.styleFrom(
-              backgroundColor: palette.bg,
-              foregroundColor: palette.fg,
-              minimumSize: minSize,
-              shape: shape,
-              padding: dims.padding,
-              elevation: 0,
-            ),
-            child: child,
-          );
+      body = variant == AppButtonVariant.ghost
+          ? OutlinedButton(
+              onPressed: disabled ? null : onPressed,
+              style: OutlinedButton.styleFrom(
+                backgroundColor: palette.bg,
+                foregroundColor: palette.fg,
+                minimumSize: minSize,
+                shape: shape,
+                side: BorderSide(color: palette.border ?? AppColors.line2),
+                padding: dims.padding,
+              ),
+              child: content,
+            )
+          : FilledButton(
+              onPressed: disabled ? null : onPressed,
+              style: FilledButton.styleFrom(
+                backgroundColor: palette.bg,
+                foregroundColor: palette.fg,
+                minimumSize: minSize,
+                shape: shape,
+                padding: dims.padding,
+                elevation: 0,
+              ),
+              child: content,
+            );
+    }
 
     return isFullWidth
-        ? SizedBox(width: double.infinity, child: button)
-        : button;
+        ? SizedBox(width: double.infinity, child: body)
+        : body;
+  }
+
+  static Color _foreground(AppButtonVariant v) {
+    switch (v) {
+      case AppButtonVariant.primary:
+        return AppColors.white;
+      case AppButtonVariant.ghost:
+        return AppColors.textPrimary;
+      case AppButtonVariant.danger:
+        return AppColors.white;
+      case AppButtonVariant.success:
+        return AppColors.bgDeep;
+    }
   }
 
   static _Palette _palette(AppButtonVariant v) {
     switch (v) {
       case AppButtonVariant.primary:
-        return const _Palette(
-            bg: AppColors.primary, fg: AppColors.white);
+        return const _Palette(bg: AppColors.primary, fg: AppColors.white);
       case AppButtonVariant.ghost:
-        return const _Palette(
-            bg: AppColors.white,
-            fg: AppColors.primary,
-            border: AppColors.border);
+        return _Palette(
+            bg: AppColors.surface2,
+            fg: AppColors.textPrimary,
+            border: AppColors.line2);
       case AppButtonVariant.danger:
-        return const _Palette(bg: AppColors.danger, fg: AppColors.white);
+        return _Palette(bg: AppColors.danger, fg: AppColors.white);
       case AppButtonVariant.success:
-        return const _Palette(bg: AppColors.success, fg: AppColors.white);
+        return _Palette(bg: AppColors.success, fg: AppColors.bgDeep);
     }
   }
 
@@ -131,9 +160,9 @@ class AppButton extends StatelessWidget {
     switch (s) {
       case AppButtonSize.small:
         return _Dims(
-          minHeight: 36,
+          minHeight: 38,
           iconSize: 16,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           labelStyle: AppTextStyles.medium13,
         );
       case AppButtonSize.large:
@@ -151,6 +180,63 @@ class AppButton extends StatelessWidget {
           labelStyle: AppTextStyles.medium14,
         );
     }
+  }
+}
+
+class _RibbonButton extends StatelessWidget {
+  const _RibbonButton({
+    required this.onPressed,
+    required this.height,
+    required this.padding,
+    required this.isFullWidth,
+    required this.child,
+  });
+
+  final VoidCallback? onPressed;
+  final double height;
+  final EdgeInsetsGeometry padding;
+  final bool isFullWidth;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onPressed == null;
+    return Opacity(
+      opacity: disabled ? 0.55 : 1.0,
+      child: Material(
+        color: Colors.transparent,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(11),
+            gradient: ribbonGradient(),
+            boxShadow: disabled
+                ? null
+                : [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.45),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+          ),
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(11),
+            splashColor: AppColors.white.withValues(alpha: 0.10),
+            highlightColor: AppColors.white.withValues(alpha: 0.06),
+            child: Container(
+              constraints: BoxConstraints(
+                minHeight: height,
+                minWidth: isFullWidth ? double.infinity : 0,
+              ),
+              padding: padding,
+              alignment: Alignment.center,
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

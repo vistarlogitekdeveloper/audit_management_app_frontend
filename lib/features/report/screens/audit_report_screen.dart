@@ -63,7 +63,7 @@ class _AuditReportScreenState extends ConsumerState<AuditReportScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off_rounded,
+            Icon(Icons.cloud_off_rounded,
                 color: AppColors.danger, size: 36),
             const SizedBox(height: 12),
             Text(
