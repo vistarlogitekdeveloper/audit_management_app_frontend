@@ -8,11 +8,29 @@ import '../../dashboard/models/dashboard_model.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../audit_plan/providers/audit_plan_provider.dart';
 
-class AuditCalendarScreen extends ConsumerWidget {
+class AuditCalendarScreen extends ConsumerStatefulWidget {
   const AuditCalendarScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AuditCalendarScreen> createState() =>
+      _AuditCalendarScreenState();
+}
+
+class _AuditCalendarScreenState extends ConsumerState<AuditCalendarScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // The incharge / cluster-manager names come from the project lookup
+    // (GET /projects). Make sure it's loaded — navigating straight to the
+    // calendar otherwise leaves those columns blank.
+    Future.microtask(() {
+      final planProvider = ref.read(auditPlanProvider);
+      if (planProvider.projects.isEmpty) planProvider.fetchProjects();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final data = ref.watch(adminDashboardProvider);
     final auditPlanState = ref.watch(auditPlanProvider);
 
@@ -158,37 +176,28 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
         ),
       );
 
+      // The incharge & cluster-manager *names* live on the richer project
+      // lookup (GET /projects), keyed by project id — the audit row only
+      // carries ids. The previous code matched the cluster manager by
+      // auditorId (surfacing the auditor's name, e.g. "Test Auditor") and used
+      // project.clientName (the company name) for the incharge; both wrong.
       final projectLookup = widget.auditPlanState.projects
           .where((p) => p.id == audit.projectId)
           .firstOrNull;
 
-      final cmFromList = widget.auditPlanState.clusterManagers
-          .where((c) => c.id == audit.auditorId)
-          .firstOrNull?.name;
-          
-      final auditorFromList = widget.auditPlanState.auditors
-          .where((a) => a.id == audit.auditorId)
-          .firstOrNull?.name;
-
-      String cmName = audit.auditorId;
-      if (cmFromList != null && cmFromList.isNotEmpty) {
-        cmName = cmFromList;
-      } else if (auditorFromList != null && auditorFromList.isNotEmpty) {
-        cmName = auditorFromList;
-      } else if (projectLookup != null && projectLookup.clusterManagerName.isNotEmpty) {
-        cmName = projectLookup.clusterManagerName;
-      }
-
-      String inchargeName = project.clientName ?? 'Unknown';
-      if (inchargeName == 'Unknown' && projectLookup != null && projectLookup.inchargeName.isNotEmpty) {
-        inchargeName = projectLookup.inchargeName;
-      }
+      final inchargeName = (projectLookup?.inchargeName.isNotEmpty ?? false)
+          ? projectLookup!.inchargeName
+          : '—';
+      final clusterManagerName =
+          (projectLookup?.clusterManagerName.isNotEmpty ?? false)
+              ? projectLookup!.clusterManagerName
+              : '—';
 
       rows.add({
         'auditId': audit.id,
         'projectName': project.name,
         'incharge': inchargeName,
-        'clusterManager': cmName,
+        'clusterManager': clusterManagerName,
         'address': audit.location,
         'area': audit.location, // Using location as area proxy
         'planDate': audit.auditDate,
