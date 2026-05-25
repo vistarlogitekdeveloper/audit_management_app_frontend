@@ -25,12 +25,14 @@ class ActionPlanTrackerScreen extends ConsumerStatefulWidget {
 
 class _ActionPlanTrackerScreenState
     extends ConsumerState<ActionPlanTrackerScreen> {
+  // Keys must be backend ActionPlan.status values (or 'all'); the tracker
+  // sends the key verbatim as ?status= (omitted for 'all').
   static const _tabs = [
     ('all', 'All'),
-    ('open', 'Open'),
-    ('pending', 'In Progress'),
-    ('closed', 'Closed'),
+    ('pending', 'Pending'),
+    ('submitted', 'In Progress'),
     ('overdue', 'Overdue'),
+    ('closed', 'Closed'),
   ];
 
   @override
@@ -112,8 +114,14 @@ class _ActionPlanTrackerScreenState
               ),
             )
           else if (provider.visible.isEmpty)
-            const AppPanel(
-              child: EmptyPanel(message: 'No action plans match this filter.'),
+            AppPanel(
+              child: EmptyPanel(
+                message: provider.filter == 'all'
+                    ? 'No action plans yet. A plan is created automatically '
+                        'when a project owner acknowledges an audit that has '
+                        'one or more failed parameters.'
+                    : 'No action plans match this filter.',
+              ),
             )
           else
             ...provider.visible.map(

@@ -240,10 +240,23 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                           : ImageSource.gallery,
                                 );
                                 if (file == null) return;
-                                final compressed = await ImageService()
-                                    .compressToMax500Kb(file.path);
                                 final provider =
                                     ref.read(auditSheetProvider);
+                                String compressed;
+                                try {
+                                  compressed = await ImageService()
+                                      .compressToMax500Kb(file.path);
+                                } on OversizedImageException catch (e) {
+                                  // Can't get under the backend's 500 KB cap —
+                                  // don't upload. Keep the picked photo as a
+                                  // local preview so the auditor can see what
+                                  // they chose and pick a smaller one.
+                                  provider.setImage(parameter.index, file.path);
+                                  if (!context.mounted) return;
+                                  AppHelpers.showErrorSnackbar(
+                                      context, e.message);
+                                  return;
+                                }
                                 final ok = await provider.uploadImage(
                                     parameter.index, compressed);
                                 if (!context.mounted) return;
@@ -446,7 +459,11 @@ class _AuditHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary, AppColors.primaryDark],
+        ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -461,7 +478,23 @@ class _AuditHeader extends StatelessWidget {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.assignment_turned_in_outlined,
+                  color: AppColors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -548,27 +581,49 @@ class _InfoBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _InfoTile(
-            label: 'Date',
-            value: AppDateUtils.formatDisplay(sheet.auditDate),
-            icon: Icons.calendar_today,
-          ),
-          _InfoTile(
-            label: 'Location',
-            value: sheet.location,
-            icon: Icons.location_on,
-          ),
-          _InfoTile(
-            label: 'Auditor',
-            value: sheet.auditorName.split(' ').first,
-            icon: Icons.person,
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: _InfoTile(
+                label: 'Date',
+                value: AppDateUtils.formatDisplay(sheet.auditDate),
+                icon: Icons.calendar_today_rounded,
+              ),
+            ),
+            const _InfoDivider(),
+            Expanded(
+              child: _InfoTile(
+                label: 'Location',
+                value: sheet.location,
+                icon: Icons.location_on_rounded,
+              ),
+            ),
+            const _InfoDivider(),
+            Expanded(
+              child: _InfoTile(
+                label: 'Auditor',
+                value: sheet.auditorName.split(' ').first,
+                icon: Icons.person_rounded,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _InfoDivider extends StatelessWidget {
+  const _InfoDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      color: AppColors.border,
     );
   }
 }
@@ -585,18 +640,34 @@ class _InfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 12, color: AppColors.textMuted),
-            const SizedBox(width: 4),
-            Text(label, style: AppTextStyles.body11),
-          ],
+        Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.blueTint,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: AppColors.primary),
         ),
-        const SizedBox(height: 2),
-        Text(value, style: AppTextStyles.medium13),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: AppTextStyles.body11),
+              const SizedBox(height: 1),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.medium13,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -775,7 +846,21 @@ class _ScoreCell extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(label, style: AppTextStyles.body11),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(label, style: AppTextStyles.body11),
+          ],
+        ),
         const SizedBox(height: 2),
         Row(
           mainAxisSize: MainAxisSize.min,

@@ -19,7 +19,9 @@ class ActionPlanTrackerProvider extends ChangeNotifier {
 
   final ActionPlanTrackerService _service;
 
-  /// 'all' | 'pending' | 'submitted' | 'overdue' | 'closed'
+  /// 'all' | 'pending' | 'submitted' | 'overdue' | 'closed'.
+  /// All non-'all' values are valid backend ActionPlan.status values and are
+  /// sent verbatim as the ?status= query param.
   String filter = 'all';
   List<ActionPlanSummary> plans = [];
   bool isLoading = false;
@@ -35,12 +37,10 @@ class ActionPlanTrackerProvider extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      // Backend statuses are pending/submitted/overdue.
-      // 'closed' and 'all' need client-side filtering.
-      final passToBackend =
-          (filter == 'pending' || filter == 'submitted' || filter == 'overdue')
-              ? filter
-              : null;
+      // Backend ?status= accepts pending/submitted/overdue/closed; 'all' must
+      // omit the param. Every non-'all' tab key is a valid value, so pass it
+      // through unchanged.
+      final passToBackend = filter == 'all' ? null : filter;
       final result = await _service.list(status: passToBackend);
       if (seq != _fetchSeq) return;
       plans = result;
@@ -60,11 +60,7 @@ class ActionPlanTrackerProvider extends ChangeNotifier {
     fetch();
   }
 
-  List<ActionPlanSummary> get visible {
-    if (filter == 'closed') return plans.where((p) => p.isClosed).toList();
-    if (filter == 'open') {
-      return plans.where((p) => !p.isClosed && !p.isOverdue).toList();
-    }
-    return plans;
-  }
+  /// The backend already filters by [filter] (via ?status=), so the loaded
+  /// list is what should be shown — no extra client-side filtering needed.
+  List<ActionPlanSummary> get visible => plans;
 }

@@ -48,14 +48,13 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(String email, String password, String role) async {
+  Future<void> login(String email, String password) async {
     isLoading = true;
     notifyListeners();
     try {
       final (_, user) = await _service.login(
         email: email,
         password: password,
-        role: role,
       );
       currentUser = user;
     } finally {

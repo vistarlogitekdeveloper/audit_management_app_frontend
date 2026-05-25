@@ -15,7 +15,6 @@ class AuthService {
   Future<(String, UserModel)> login({
     required String email,
     required String password,
-    required String role,
   }) async {
     final response = await _apiService.post(
       ApiConstants.login,
@@ -30,9 +29,9 @@ class AuthService {
     final userJson =
         AppHelpers.asStringMap(data['user']) ?? <String, dynamic>{};
     final responseUser = UserModel.fromJson(userJson);
-    final normalizedRole = AppConstants.normalizeRole(
-      responseUser.role.isEmpty ? role : responseUser.role,
-    );
+    // Server-side user.role is the source of truth; the client no longer
+    // sends a role with the request.
+    final normalizedRole = AppConstants.normalizeRole(responseUser.role);
     final user = UserModel(
       id: responseUser.id,
       name: responseUser.name,

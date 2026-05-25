@@ -39,116 +39,361 @@ class AuditRowWidget extends StatefulWidget {
 }
 
 class _AuditRowWidgetState extends State<AuditRowWidget> {
+  bool get _answered => widget.selectedResult != null;
+
+  bool get _remarkMissing => widget.remarkController.text.trim().isEmpty;
+
   @override
   Widget build(BuildContext context) {
-    final invalid =
-        !widget.isReadOnly &&
+    final invalid = !widget.isReadOnly &&
         widget.showValidation &&
-            (widget.selectedResult == null ||
-                widget.remarkController.text.trim().isEmpty);
+        (!_answered || _remarkMissing);
+
+    // A subtle left accent tinted by the chosen result gives each card a
+    // quick-scan status without leaning on extra chrome.
+    final accent = switch (widget.selectedResult) {
+      AppConstants.resultPass => AppColors.passBorder,
+      AppConstants.resultFail => AppColors.failBorder,
+      AppConstants.resultNA => AppColors.naBorder,
+      _ => AppColors.border,
+    };
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: invalid ? AppColors.danger : AppColors.border,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.025),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 28,
-                child: Text('${widget.index}.', style: AppTextStyles.body11),
-              ),
-              Expanded(
-                child: Text(widget.parameterName, style: AppTextStyles.medium14),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          PFNToggle(
-            selected: widget.selectedResult,
-            onSelected: widget.onResultChanged,
-            isReadOnly: widget.isReadOnly,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: widget.remarkController,
-            maxLines: 2,
-            enabled: !widget.isReadOnly,
-            onChanged: widget.onRemarkChanged,
-            decoration: InputDecoration(
-              hintText: 'Add remark',
-              errorText: invalid && widget.remarkController.text.trim().isEmpty
-                  ? 'Remark is required'
-                  : null,
+          // Header strip: numbered badge + parameter name, with a coloured
+          // left edge that reflects the current result.
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 14, 14, 0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _IndexBadge(index: widget.index, answered: _answered),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              widget.parameterName,
+                              style: AppTextStyles.medium14.copyWith(
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              if (!widget.isReadOnly)
-                IconButton(
-                  onPressed: () async {
-                    final source = await showModalBottomSheet<ImageSourceType>(
-                      context: context,
-                      builder: (context) => SafeArea(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.fromLTRB(16, 12, 4, 0),
-                              child: AppSheetHeader(title: 'Add photo'),
-                            ),
-                            ListTile(
-                              leading: const Icon(Icons.photo_camera_outlined),
-                              title: const Text('Take Photo'),
-                              onTap: () => Navigator.of(context).pop(ImageSourceType.camera),
-                            ),
-                            ListTile(
-                              leading: const Icon(Icons.photo_library_outlined),
-                              title: const Text('Choose from Gallery'),
-                              onTap: () => Navigator.of(context).pop(ImageSourceType.gallery),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                    if (source != null) widget.onImagePicked(source);
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                PFNToggle(
+                  selected: widget.selectedResult,
+                  onSelected: widget.onResultChanged,
+                  isReadOnly: widget.isReadOnly,
+                ),
+                const SizedBox(height: 14),
+                const _FieldLabel(
+                  icon: Icons.notes_rounded,
+                  label: 'Remark',
+                  required: true,
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: widget.remarkController,
+                  maxLines: 2,
+                  enabled: !widget.isReadOnly,
+                  onChanged: (value) {
+                    widget.onRemarkChanged(value);
+                    // Rebuild so the inline error clears as soon as the auditor
+                    // starts typing a remark.
+                    if (widget.showValidation) setState(() {});
                   },
-                  icon: const Icon(Icons.camera_alt_outlined),
-                )
-              else
-                const Icon(Icons.image_outlined, color: AppColors.textMuted, size: 20),
-              
-              const SizedBox(width: 8),
-              if (widget.imagePath != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: widget.imagePath!.startsWith('http') 
-                    ? Image.network(widget.imagePath!, width: 56, height: 56, fit: BoxFit.cover)
-                    : Image.file(
-                        File(widget.imagePath!),
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
+                  style: AppTextStyles.body13.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    filled: true,
+                    fillColor: widget.isReadOnly
+                        ? AppColors.greyTint
+                        : AppColors.background,
+                    hintText: 'Describe the observation…',
+                    hintStyle: AppTextStyles.body12,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.4,
                       ),
-                )
-              else if (widget.isReadOnly)
-                Text('No image', style: AppTextStyles.body11),
-
-              if (widget.selectedResult != null) ...[
-                const Spacer(),
-                StatusPill(status: widget.selectedResult!),
+                    ),
+                    errorText: invalid && _remarkMissing
+                        ? 'Remark is required'
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const _FieldLabel(
+                  icon: Icons.image_outlined,
+                  label: 'Evidence photo',
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _EvidenceControl(
+                      imagePath: widget.imagePath,
+                      isReadOnly: widget.isReadOnly,
+                      onTap: widget.isReadOnly ? null : _pickPhoto,
+                    ),
+                    const Spacer(),
+                    if (widget.selectedResult != null)
+                      StatusPill(status: widget.selectedResult!),
+                  ],
+                ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickPhoto() async {
+    final source = await showModalBottomSheet<ImageSourceType>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 4, 0),
+              child: AppSheetHeader(title: 'Add photo'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take Photo'),
+              onTap: () => Navigator.of(context).pop(ImageSourceType.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.of(context).pop(ImageSourceType.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null) widget.onImagePicked(source);
+  }
+}
+
+/// Small numbered badge in front of each parameter. Turns into a check once the
+/// row has a result so the auditor can see at a glance what's done.
+class _IndexBadge extends StatelessWidget {
+  const _IndexBadge({required this.index, required this.answered});
+
+  final int index;
+  final bool answered;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: answered
+            ? AppColors.secondary.withValues(alpha: 0.12)
+            : AppColors.blueTint,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: answered
+          ? const Icon(Icons.check_rounded,
+              size: 16, color: AppColors.secondary)
+          : Text(
+              '$index',
+              style: AppTextStyles.medium12.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel({
+    required this.icon,
+    required this.label,
+    this.required = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool required;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 13, color: AppColors.textMuted),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: AppTextStyles.medium12.copyWith(
+            color: AppColors.textSecondary,
+            letterSpacing: 0.2,
+          ),
+        ),
+        if (required) ...[
+          const SizedBox(width: 3),
+          Text(
+            '*',
+            style: AppTextStyles.medium12.copyWith(color: AppColors.danger),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// "Add photo" affordance / evidence thumbnail. Tapping (when editable)
+/// re-opens the picker so an existing photo can be replaced.
+class _EvidenceControl extends StatelessWidget {
+  const _EvidenceControl({
+    required this.imagePath,
+    required this.isReadOnly,
+    required this.onTap,
+  });
+
+  final String? imagePath;
+  final bool isReadOnly;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = imagePath;
+
+    if (path == null) {
+      if (isReadOnly) {
+        return Row(
+          children: [
+            const Icon(Icons.image_not_supported_outlined,
+                size: 18, color: AppColors.textMuted),
+            const SizedBox(width: 6),
+            Text('No evidence', style: AppTextStyles.body12),
+          ],
+        );
+      }
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.blueTint,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.28),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add_a_photo_outlined,
+                  size: 16, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Add photo',
+                style: AppTextStyles.medium13.copyWith(
+                  color: AppColors.primary,
+                ),
+              ),
             ],
+          ),
+        ),
+      );
+    }
+
+    final thumb = ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: path.startsWith('http')
+          ? Image.network(path, width: 60, height: 60, fit: BoxFit.cover)
+          : Image.file(File(path), width: 60, height: 60, fit: BoxFit.cover),
+    );
+
+    if (isReadOnly) return thumb;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Stack(
+        children: [
+          thumb,
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  bottomRight: Radius.circular(8),
+                ),
+              ),
+              child: const Icon(Icons.edit_rounded,
+                  size: 12, color: AppColors.white),
+            ),
           ),
         ],
       ),
@@ -174,6 +419,7 @@ class PFNToggle extends StatelessWidget {
       children: [
         _ResultChip(
           label: 'Pass',
+          icon: Icons.check_circle_outline_rounded,
           value: AppConstants.resultPass,
           selected: selected,
           onSelected: onSelected,
@@ -185,6 +431,7 @@ class PFNToggle extends StatelessWidget {
         const SizedBox(width: 8),
         _ResultChip(
           label: 'Fail',
+          icon: Icons.cancel_outlined,
           value: AppConstants.resultFail,
           selected: selected,
           onSelected: onSelected,
@@ -196,6 +443,7 @@ class PFNToggle extends StatelessWidget {
         const SizedBox(width: 8),
         _ResultChip(
           label: 'NA',
+          icon: Icons.remove_circle_outline_rounded,
           value: AppConstants.resultNA,
           selected: selected,
           onSelected: onSelected,
@@ -212,6 +460,7 @@ class PFNToggle extends StatelessWidget {
 class _ResultChip extends StatelessWidget {
   const _ResultChip({
     required this.label,
+    required this.icon,
     required this.value,
     required this.selected,
     required this.onSelected,
@@ -222,6 +471,7 @@ class _ResultChip extends StatelessWidget {
   });
 
   final String label;
+  final IconData icon;
   final String value;
   final String? selected;
   final ValueChanged<String> onSelected;
@@ -237,21 +487,38 @@ class _ResultChip extends StatelessWidget {
       child: InkWell(
         onTap: isReadOnly ? null : () => onSelected(value),
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          height: 38,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          height: 42,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: active ? selectedColor : AppColors.white,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: active ? borderColor : AppColors.border,
+              width: active ? 1.4 : 1,
             ),
           ),
-          child: Text(
-            label,
-            style: AppTextStyles.medium12.copyWith(
-              color: active ? textColor : AppColors.textSecondary,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: active ? textColor : AppColors.textMuted,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.medium12.copyWith(
+                    color: active ? textColor : AppColors.textSecondary,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

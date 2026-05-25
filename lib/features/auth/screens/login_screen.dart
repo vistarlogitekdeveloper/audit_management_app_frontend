@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/api_constants.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/helpers.dart';
@@ -24,7 +23,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String _selectedRole = AppConstants.roleAdmin;
   bool _obscure = true;
 
   @override
@@ -96,14 +94,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               emailController: _emailController,
                                               passwordController:
                                                   _passwordController,
-                                              selectedRole: _selectedRole,
                                               obscure: _obscure,
                                               isLoading: auth.isLoading,
-                                              onRoleSelected: (role) {
-                                                setState(
-                                                  () => _selectedRole = role,
-                                                );
-                                              },
                                               onTogglePassword: () {
                                                 setState(
                                                   () => _obscure = !_obscure,
@@ -121,13 +113,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   formKey: _formKey,
                                   emailController: _emailController,
                                   passwordController: _passwordController,
-                                  selectedRole: _selectedRole,
                                   obscure: _obscure,
                                   isLoading: auth.isLoading,
                                   showMobileBrand: true,
-                                  onRoleSelected: (role) {
-                                    setState(() => _selectedRole = role);
-                                  },
                                   onTogglePassword: () {
                                     setState(() => _obscure = !_obscure);
                                   },
@@ -153,7 +141,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .login(
             _emailController.text.trim(),
             _passwordController.text,
-            _selectedRole,
           );
       if (!mounted) return;
       context.go(ref.read(authProvider).homeRouteForRole());
@@ -169,10 +156,8 @@ class _LoginFormPanel extends StatelessWidget {
     required this.formKey,
     required this.emailController,
     required this.passwordController,
-    required this.selectedRole,
     required this.obscure,
     required this.isLoading,
-    required this.onRoleSelected,
     required this.onTogglePassword,
     required this.onSubmit,
     this.showMobileBrand = false,
@@ -181,10 +166,8 @@ class _LoginFormPanel extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController emailController;
   final TextEditingController passwordController;
-  final String selectedRole;
   final bool obscure;
   final bool isLoading;
-  final ValueChanged<String> onRoleSelected;
   final VoidCallback onTogglePassword;
   final Future<void> Function() onSubmit;
   final bool showMobileBrand;
@@ -210,13 +193,6 @@ class _LoginFormPanel extends StatelessWidget {
               style: AppTextStyles.body13,
             ),
             const SizedBox(height: 24),
-            Text('Choose workspace', style: AppTextStyles.medium13),
-            const SizedBox(height: 10),
-            _RoleSelector(
-              selectedRole: selectedRole,
-              onRoleSelected: onRoleSelected,
-            ),
-            const SizedBox(height: 22),
             AppInput(
               label: 'Email address',
               hint: 'name@company.com',
@@ -292,86 +268,6 @@ class _LoginFormPanel extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _RoleSelector extends StatelessWidget {
-  const _RoleSelector({
-    required this.selectedRole,
-    required this.onRoleSelected,
-  });
-
-  final String selectedRole;
-  final ValueChanged<String> onRoleSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children:
-          AppConstants.allRoles.map((role) {
-            final selected = role == selectedRole;
-            return InkWell(
-              onTap: () => onRoleSelected(role),
-              borderRadius: BorderRadius.circular(8),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: selected ? AppColors.blueTint : AppColors.greyTint,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: selected ? AppColors.primary : AppColors.border,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _roleIcon(role),
-                      size: 16,
-                      color:
-                          selected
-                              ? AppColors.primary
-                              : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 7),
-                    Text(
-                      _roleLabel(role),
-                      style: AppTextStyles.medium12.copyWith(
-                        color:
-                            selected
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-    );
-  }
-
-  IconData _roleIcon(String role) {
-    return switch (role) {
-      AppConstants.roleAuditor => Icons.fact_check_outlined,
-      AppConstants.roleProjectOwner => Icons.assignment_ind_outlined,
-      AppConstants.roleClusterManager => Icons.account_tree_outlined,
-      _ => Icons.admin_panel_settings_outlined,
-    };
-  }
-
-  String _roleLabel(String role) {
-    return switch (role) {
-      AppConstants.roleProjectOwner => 'Owner',
-      AppConstants.roleClusterManager => 'Cluster',
-      _ => role,
-    };
   }
 }
 
