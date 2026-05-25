@@ -1,9 +1,27 @@
+# Render Blueprint — Flutter web served as a Static Site.
+#
+# Render's static build environment has no Flutter SDK, so the build command
+# clones the stable SDK (guarded so a cached build dir doesn't error), enables
+# web, fetches packages, and produces build/web — which is then published.
+#
+# The repo also ships a Dockerfile + nginx.conf.template for a Docker web
+# service; this static-site setup is the lighter alternative and the one in use.
 services:
   - type: web
     name: audit-management-app-frontend
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    plan: free
-    envVars:
-      - key: PORT
-        value: 10000
+    runtime: static
+    buildCommand: >-
+      if [ ! -d "$HOME/flutter" ]; then
+        git clone https://github.com/flutter/flutter.git --depth 1 --branch stable "$HOME/flutter";
+      fi &&
+      export PATH="$HOME/flutter/bin:$PATH" &&
+      flutter config --enable-web &&
+      flutter pub get &&
+      flutter build web --release --base-href /
+    staticPublishPath: build/web
+    # Flutter web is a single-page app: serve index.html for any unknown path
+    # so deep links / refreshes don't 404.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
