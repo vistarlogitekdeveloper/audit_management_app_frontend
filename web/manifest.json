@@ -1,11 +1,11 @@
 {
-    "name": "audit_management_app_frontend",
-    "short_name": "audit_management_app_frontend",
+    "name": "Vistar Audit",
+    "short_name": "Vistar Audit",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#070611",
+    "theme_color": "#E0218A",
+    "description": "Vistar Audit — plan, execute, and review audits from one premium dark/light workspace.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
