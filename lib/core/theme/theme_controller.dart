@@ -31,7 +31,7 @@ class ThemeController extends ChangeNotifier {
 
   final SharedPreferences _prefs;
 
-  ThemeMode _mode = ThemeMode.dark;
+  ThemeMode _mode = ThemeMode.light;
   ThemeMode get mode => _mode;
 
   /// Resolved brightness — accounts for [ThemeMode.system] by reading
@@ -55,7 +55,7 @@ class ThemeController extends ChangeNotifier {
   /// `MaterialApp` builds its themes.
   void restore() {
     final raw = _prefs.getString(AppConstants.themeModeKey);
-    _mode = _decode(raw) ?? ThemeMode.dark;
+    _mode = _decode(raw) ?? ThemeMode.light;
     _syncGlobalBrightness();
 
     // When the user picked "system", keep tracking the platform.

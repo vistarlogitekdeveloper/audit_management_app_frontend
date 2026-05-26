@@ -16,11 +16,11 @@ import 'package:flutter/material.dart';
 /// fresh values.
 
 /// Global brightness used by the mode-aware getters below. Defaults to
-/// dark to match the launch experience; `ThemeController` restores the
-/// persisted preference on app start and writes through to this
+/// light to match the launch experience; `ThemeController` restores
+/// the persisted preference on app start and writes through to this
 /// notifier when the user toggles.
 final ValueNotifier<Brightness> appBrightness =
-    ValueNotifier<Brightness>(Brightness.dark);
+    ValueNotifier<Brightness>(Brightness.light);
 
 bool get _isDark => appBrightness.value == Brightness.dark;
 
