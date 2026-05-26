@@ -55,6 +55,12 @@ class ApiConstants {
   static String actionPlanById(String id) => '/action-plans/$id';
   static String actionPlanItem(String id, String itemId) =>
       '/action-plans/$id/items/$itemId';
+  /// Auditor approves / rejects a single item with a remark.
+  static String actionPlanItemReview(String planId, String itemId) =>
+      '/action-plans/$planId/items/$itemId/review';
+  /// Auditor closes the plan once every item is approved.
+  static String actionPlanClose(String planId) =>
+      '/action-plans/$planId/close';
 
   // Cluster
   static const String clusterDashboard = '/cluster/dashboard';

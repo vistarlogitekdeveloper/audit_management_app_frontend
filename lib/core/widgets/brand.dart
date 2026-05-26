@@ -67,6 +67,17 @@ class AmbientCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Subscribe to the global brightness notifier so the canvas
+    // refreshes on theme toggle even when constructed as
+    // `const AmbientCanvas()` (Flutter would otherwise skip rebuilds
+    // of const widgets when only their parent rebuilds).
+    return AnimatedBuilder(
+      animation: appBrightness,
+      builder: (context, _) => _build(context),
+    );
+  }
+
+  Widget _build(BuildContext context) {
     // Light mode runs noticeably softer — the auroras would otherwise
     // saturate the paper-white canvas and tint everything pink. Dark
     // mode keeps the original premium glow.
@@ -237,6 +248,17 @@ class _BrandLoaderState extends State<BrandLoader>
 
   @override
   Widget build(BuildContext context) {
+    // Subscribe to the global brightness notifier so the loader's
+    // pink halo softens / brightens on theme toggle, even when this
+    // widget is hosted as a `const BrandLoader(...)` (Flutter would
+    // otherwise skip rebuilds when only the parent rebuilds).
+    return AnimatedBuilder(
+      animation: appBrightness,
+      builder: (context, _) => _build(context),
+    );
+  }
+
+  Widget _build(BuildContext context) {
     // Soften the pink halo on light mode so the orbit reads as a
     // halo, not a fluorescent stamp.
     final isDark = appBrightness.value == Brightness.dark;

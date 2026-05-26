@@ -32,6 +32,19 @@ class MainScaffold extends ConsumerWidget {
     final auth = ref.watch(authProvider);
     final notifications = ref.watch(notificationProvider);
     final offline = ref.watch(connectivityProvider).isOffline;
+    // Watching the theme controller does two jobs here:
+    //   1. Rebuilds MainScaffold (sidebar / topbar / nav chrome) so its
+    //      AppColors lookups re-resolve under the new brightness.
+    //   2. Provides a brightness value to key the routed-page subtree
+    //      so Flutter remounts it on toggle — see the KeyedSubtree
+    //      below. Without that, Flutter's Element.updateChild short-
+    //      circuits on `widget == oldWidget` (same `child` instance
+    //      from GoRouter) and the page never re-reads `AppColors.X`.
+    //      The trade-off is that the active page loses its in-page
+    //      State (scroll position, in-progress form input) on toggle;
+    //      navigation / auth / chrome state are preserved.
+    final brightness =
+        ref.watch(themeControllerProvider).effectiveBrightness;
     final isMobile = MediaQuery.of(context).size.width < 600;
     final items = _navItemsForRole(auth.currentUser?.role ?? '');
     final title = _titleForLocation(location);
@@ -71,7 +84,10 @@ class MainScaffold extends ConsumerWidget {
                                   isMobile ? 14 : 22,
                                   24,
                                 ),
-                                child: child,
+                                child: KeyedSubtree(
+                                  key: ValueKey(brightness),
+                                  child: child,
+                                ),
                               ),
                             ),
                           ],
