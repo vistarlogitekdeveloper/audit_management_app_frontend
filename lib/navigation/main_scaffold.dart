@@ -629,23 +629,9 @@ class _BrandLockup extends StatelessWidget {
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              // Render the colourful Vistar wordmark image rather than themed
-              // text, so the brand stays legible in dark mode (themed text
-              // could blend into the dark sidebar).
-              SizedBox(
-                height: 18,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: FittedBox(
-                    fit: BoxFit.contain,
-                    alignment: Alignment.centerLeft,
-                    child: Image.asset(kWordmarkAsset),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 3),
+              Text('Vistar Audit', style: AppTextStyles.title16),
+              const SizedBox(height: 2),
               Text('Audit command', style: AppTextStyles.body11),
             ],
           ),
