@@ -61,7 +61,9 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        // Mode-aware surface so the card (and its text) stays legible in dark
+        // mode — a hardcoded white card hid the light-on-light text.
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: invalid ? AppColors.danger : AppColors.border,
@@ -492,7 +494,7 @@ class _ResultChip extends StatelessWidget {
           height: 42,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? selectedColor : AppColors.white,
+            color: active ? selectedColor : AppColors.surface2,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: active ? borderColor : AppColors.border,
