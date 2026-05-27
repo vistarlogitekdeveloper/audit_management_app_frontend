@@ -602,41 +602,48 @@ class _BrandLockup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: AppColors.surface2,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.line2),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.38),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    // Rebuild on theme toggle so the mode-aware colours (the "Vistar Audit"
+    // text via AppColors.textPrimary, the tile surface, borders) re-resolve
+    // live — a const widget otherwise keeps the colours from the mode it was
+    // first built in.
+    return AnimatedBuilder(
+      animation: appBrightness,
+      builder: (context, _) => Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: AppColors.surface2,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.line2),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.38),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(3),
+              child: Image.asset(kSMarkAsset, fit: BoxFit.contain),
+            ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(3),
-            child: Image.asset(kSMarkAsset, fit: BoxFit.contain),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Vistar Audit', style: AppTextStyles.title16),
+                const SizedBox(height: 2),
+                Text('Audit command', style: AppTextStyles.body11),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Vistar Audit', style: AppTextStyles.title16),
-              const SizedBox(height: 2),
-              Text('Audit command', style: AppTextStyles.body11),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
