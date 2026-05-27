@@ -79,9 +79,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 final verticalPadding = isWide ? 32.0 : 20.0;
                 final availableHeight =
                     constraints.maxHeight - (verticalPadding * 2);
-                final double? panelHeight = isWide
-                    ? availableHeight.clamp(560.0, 680.0).toDouble()
-                    : null;
+                final double? panelHeight =
+                    isWide
+                        ? availableHeight.clamp(560.0, 680.0).toDouble()
+                        : null;
 
                 return Center(
                   child: SingleChildScrollView(
@@ -109,66 +110,74 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(20),
-                          child: isWide
-                              ? SizedBox(
-                                  height: panelHeight,
-                                  child: Row(
-                                    children: [
-                                      const Expanded(
-                                          flex: 105, child: _BrandPanel()),
-                                      Expanded(
-                                        flex: 95,
-                                        child: Container(
-                                          color: AppColors.bgRaised,
-                                          child: Center(
-                                            child: SingleChildScrollView(
-                                              padding: const EdgeInsets
-                                                  .symmetric(vertical: 24),
-                                              child: _LoginFormPanel(
-                                                formKey: _formKey,
-                                                emailController:
-                                                    _emailController,
-                                                passwordController:
-                                                    _passwordController,
-                                                obscure: _obscure,
-                                                isLoading: auth.isLoading,
-                                                rememberMe: _rememberMe,
-                                                onToggleRemember: (v) {
-                                                  setState(() =>
-                                                      _rememberMe = v);
-                                                },
-                                                onTogglePassword: () {
-                                                  setState(() =>
-                                                      _obscure = !_obscure);
-                                                },
-                                                onSubmit: _submitLogin,
+                          child:
+                              isWide
+                                  ? SizedBox(
+                                    height: panelHeight,
+                                    child: Row(
+                                      children: [
+                                        const Expanded(
+                                          flex: 105,
+                                          child: _BrandPanel(),
+                                        ),
+                                        Expanded(
+                                          flex: 95,
+                                          child: Container(
+                                            color: AppColors.bgRaised,
+                                            child: Center(
+                                              child: SingleChildScrollView(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 24,
+                                                    ),
+                                                child: _LoginFormPanel(
+                                                  formKey: _formKey,
+                                                  emailController:
+                                                      _emailController,
+                                                  passwordController:
+                                                      _passwordController,
+                                                  obscure: _obscure,
+                                                  isLoading: auth.isLoading,
+                                                  rememberMe: _rememberMe,
+                                                  onToggleRemember: (v) {
+                                                    setState(
+                                                      () => _rememberMe = v,
+                                                    );
+                                                  },
+                                                  onTogglePassword: () {
+                                                    setState(
+                                                      () =>
+                                                          _obscure = !_obscure,
+                                                    );
+                                                  },
+                                                  onSubmit: _submitLogin,
+                                                ),
                                               ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
+                                  )
+                                  : Container(
+                                    color: AppColors.bgRaised,
+                                    child: _LoginFormPanel(
+                                      formKey: _formKey,
+                                      emailController: _emailController,
+                                      passwordController: _passwordController,
+                                      obscure: _obscure,
+                                      isLoading: auth.isLoading,
+                                      showMobileBrand: true,
+                                      rememberMe: _rememberMe,
+                                      onToggleRemember: (v) {
+                                        setState(() => _rememberMe = v);
+                                      },
+                                      onTogglePassword: () {
+                                        setState(() => _obscure = !_obscure);
+                                      },
+                                      onSubmit: _submitLogin,
+                                    ),
                                   ),
-                                )
-                              : Container(
-                                  color: AppColors.bgRaised,
-                                  child: _LoginFormPanel(
-                                    formKey: _formKey,
-                                    emailController: _emailController,
-                                    passwordController: _passwordController,
-                                    obscure: _obscure,
-                                    isLoading: auth.isLoading,
-                                    showMobileBrand: true,
-                                    rememberMe: _rememberMe,
-                                    onToggleRemember: (v) {
-                                      setState(() => _rememberMe = v);
-                                    },
-                                    onTogglePassword: () {
-                                      setState(() => _obscure = !_obscure);
-                                    },
-                                    onSubmit: _submitLogin,
-                                  ),
-                                ),
                         ),
                       ),
                     ),
@@ -340,19 +349,24 @@ class _RememberMeToggle extends StatelessWidget {
                   color: value ? AppColors.primary : AppColors.line2,
                   width: 1.4,
                 ),
-                boxShadow: value
-                    ? [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.35),
-                          blurRadius: 10,
-                        ),
-                      ]
-                    : null,
+                boxShadow:
+                    value
+                        ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                          ),
+                        ]
+                        : null,
               ),
-              child: value
-                  ? const Icon(Icons.check_rounded,
-                      size: 14, color: AppColors.white)
-                  : null,
+              child:
+                  value
+                      ? const Icon(
+                        Icons.check_rounded,
+                        size: 14,
+                        color: AppColors.white,
+                      )
+                      : null,
             ),
             const SizedBox(width: 9),
             Text(
@@ -382,27 +396,35 @@ class _TestSmtpButtonState extends State<_TestSmtpButton> {
   Future<void> _sendTest() async {
     setState(() => _loading = true);
     try {
-      final dio = Dio(BaseOptions(
-        baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 20),
-        receiveTimeout: const Duration(seconds: 20),
-      ));
+      final dio = Dio(
+        BaseOptions(
+          baseUrl: ApiConstants.baseUrl,
+          connectTimeout: const Duration(seconds: 20),
+          receiveTimeout: const Duration(seconds: 20),
+        ),
+      );
       final resp = await dio.get('/test-smtp');
       final data = resp.data is Map ? resp.data as Map : <String, dynamic>{};
       final ok = data['data']?['ok'] == true;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(ok
-            ? 'Test email sent to Flutter.developer@vistarlogitek.com'
-            : 'SMTP failed: ${data['data']?['error'] ?? 'unknown error'}'),
-        backgroundColor: ok ? AppColors.success : AppColors.danger,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ok
+                ? 'Test email sent to Flutter.developer@vistarlogitek.com'
+                : 'SMTP failed: ${data['data']?['error'] ?? 'unknown error'}',
+          ),
+          backgroundColor: ok ? AppColors.success : AppColors.danger,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Request failed: $e'),
-        backgroundColor: AppColors.danger,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Request failed: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -412,13 +434,14 @@ class _TestSmtpButtonState extends State<_TestSmtpButton> {
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: _loading ? null : _sendTest,
-      icon: _loading
-          ? const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.email_outlined, size: 16),
+      icon:
+          _loading
+              ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+              : const Icon(Icons.email_outlined, size: 16),
       label: Text(
         _loading ? 'Sending…' : '[DEV] Test SMTP email',
         style: AppTextStyles.medium13,
@@ -463,70 +486,92 @@ class _BrandPanel extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(40),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    SizedBox(
-                      width: 180,
-                      child: Image.asset(kWordmarkAsset, fit: BoxFit.contain),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                // Pitch headline with a single ribbon-gradient accent word.
-                RichText(
-                  text: TextSpan(
-                    style: AppTextStyles.headline22.copyWith(
-                      fontSize: 32,
-                      height: 1.18,
-                      color: AppColors.textPrimary,
-                    ),
-                    children: [
-                      const TextSpan(text: 'Audit '),
-                      WidgetSpan(
-                        alignment: PlaceholderAlignment.baseline,
-                        baseline: TextBaseline.alphabetic,
-                        child: RibbonText(
-                          'control',
-                          style: AppTextStyles.headline22.copyWith(
-                            fontSize: 32,
-                            height: 1.18,
-                          ),
+            // Fill the panel height so the Spacers distribute nicely, but
+            // scroll instead of overflowing when the window is too short.
+            child: LayoutBuilder(
+              builder:
+                  (context, constraints) => SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight:
+                            constraints.maxHeight.isFinite
+                                ? constraints.maxHeight
+                                : 0,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                SizedBox(
+                                  width: 180,
+                                  child: Image.asset(
+                                    kWordmarkAsset,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            // Pitch headline with a single ribbon-gradient accent word.
+                            RichText(
+                              text: TextSpan(
+                                style: AppTextStyles.headline22.copyWith(
+                                  fontSize: 32,
+                                  height: 1.18,
+                                  color: AppColors.textPrimary,
+                                ),
+                                children: [
+                                  const TextSpan(text: 'Audit '),
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.baseline,
+                                    baseline: TextBaseline.alphabetic,
+                                    child: RibbonText(
+                                      'control',
+                                      style: AppTextStyles.headline22.copyWith(
+                                        fontSize: 32,
+                                        height: 1.18,
+                                      ),
+                                    ),
+                                  ),
+                                  const TextSpan(
+                                    text: ' that stays clear under pressure.',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Plan audits, capture findings, track action plans, and keep every stakeholder aligned from one workspace.',
+                              style: AppTextStyles.body14.copyWith(
+                                color: AppColors.textSecondary,
+                                height: 1.55,
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            const _AuditPreview(),
+                            const Spacer(),
+                            Row(
+                              children: [
+                                _MetricPill(
+                                  icon: Icons.verified_outlined,
+                                  label: 'Live status',
+                                  color: AppColors.success,
+                                ),
+                                const SizedBox(width: 10),
+                                _MetricPill(
+                                  icon: Icons.schedule_outlined,
+                                  label: 'Due tracking',
+                                  color: AppColors.warning,
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      const TextSpan(text: ' that stays clear under pressure.'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Plan audits, capture findings, track action plans, and keep every stakeholder aligned from one workspace.',
-                  style: AppTextStyles.body14.copyWith(
-                    color: AppColors.textSecondary,
-                    height: 1.55,
-                  ),
-                ),
-                const SizedBox(height: 28),
-                const _AuditPreview(),
-                const Spacer(),
-                Row(
-                  children: [
-                    _MetricPill(
-                      icon: Icons.verified_outlined,
-                      label: 'Live status',
-                      color: AppColors.success,
                     ),
-                    const SizedBox(width: 10),
-                    _MetricPill(
-                      icon: Icons.schedule_outlined,
-                      label: 'Due tracking',
-                      color: AppColors.warning,
-                    ),
-                  ],
-                ),
-              ],
+                  ),
             ),
           ),
         ],
@@ -619,10 +664,7 @@ class _CompactBrandHeader extends StatelessWidget {
           children: [
             Text('Vistar Audit', style: AppTextStyles.title18),
             const SizedBox(height: 2),
-            Text(
-              'Management console',
-              style: AppTextStyles.body12,
-            ),
+            Text('Management console', style: AppTextStyles.body12),
           ],
         ),
       ],
@@ -689,7 +731,8 @@ class _PreviewRow extends StatelessWidget {
             color: AppColors.primary.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.30)),
+              color: AppColors.primary.withValues(alpha: 0.30),
+            ),
           ),
           child: Icon(icon, color: AppColors.primary, size: 19),
         ),
@@ -698,15 +741,9 @@ class _PreviewRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: AppTextStyles.medium13,
-              ),
+              Text(title, style: AppTextStyles.medium13),
               const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: AppTextStyles.body12,
-              ),
+              Text(subtitle, style: AppTextStyles.body12),
             ],
           ),
         ),
