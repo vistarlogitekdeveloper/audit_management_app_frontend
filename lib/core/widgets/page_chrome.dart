@@ -26,7 +26,14 @@ class PageHero extends StatelessWidget {
   final Color tone;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+        // Re-resolve mode-aware colours when the theme toggles, even if this
+        // widget's element is reused (and so wouldn't otherwise rebuild).
+        animation: appBrightness,
+        builder: (context, _) => _build(context),
+      );
+
+  Widget _build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final compact = width < 700;
     final pad = compact ? 18.0 : 24.0;
@@ -168,7 +175,12 @@ class AppPanel extends StatelessWidget {
   final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: appBrightness,
+        builder: (context, _) => _build(context),
+      );
+
+  Widget _build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final defaultPad = dense
         ? const EdgeInsets.all(14)
@@ -240,7 +252,12 @@ class InfoMetric extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: appBrightness,
+        builder: (context, _) => _build(context),
+      );
+
+  Widget _build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -299,7 +316,12 @@ class EmptyPanel extends StatelessWidget {
   final Widget? action;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: appBrightness,
+        builder: (context, _) => _build(context),
+      );
+
+  Widget _build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
