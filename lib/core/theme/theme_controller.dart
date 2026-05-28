@@ -26,12 +26,13 @@ final themeControllerProvider =
 /// `ThemeMode.system` the controller listens to platform brightness
 /// changes via [WidgetsBinding.instance.platformDispatcher] so the UI
 /// flips along with the device.
-class ThemeController extends ChangeNotifier {
+class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
   ThemeController(this._prefs);
 
   final SharedPreferences _prefs;
 
   ThemeMode _mode = ThemeMode.light;
+  bool _observerRegistered = false;
   ThemeMode get mode => _mode;
 
   /// Resolved brightness — accounts for [ThemeMode.system] by reading
@@ -57,15 +58,30 @@ class ThemeController extends ChangeNotifier {
     final raw = _prefs.getString(AppConstants.themeModeKey);
     _mode = _decode(raw) ?? ThemeMode.light;
     _syncGlobalBrightness();
+    // Track platform brightness via the observer hook instead of
+    // overwriting `platformDispatcher.onPlatformBrightnessChanged`, which
+    // would clobber whatever the Flutter framework had set there.
+    if (!_observerRegistered) {
+      WidgetsBinding.instance.addObserver(this);
+      _observerRegistered = true;
+    }
+  }
 
-    // When the user picked "system", keep tracking the platform.
-    WidgetsBinding.instance.platformDispatcher
-        .onPlatformBrightnessChanged = () {
-      if (_mode == ThemeMode.system) {
-        _syncGlobalBrightness();
-        notifyListeners();
-      }
-    };
+  @override
+  void didChangePlatformBrightness() {
+    if (_mode == ThemeMode.system) {
+      _syncGlobalBrightness();
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_observerRegistered) {
+      WidgetsBinding.instance.removeObserver(this);
+      _observerRegistered = false;
+    }
+    super.dispose();
   }
 
   Future<void> setMode(ThemeMode next) async {

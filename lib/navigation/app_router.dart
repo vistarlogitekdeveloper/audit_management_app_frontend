@@ -51,7 +51,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final path = state.matchedLocation;
       if (role == AppConstants.roleAdmin) return null;
       if (role == AppConstants.roleAuditor &&
-          path.startsWith('/admin')) {
+          (path.startsWith('/admin') ||
+              path.startsWith('/owner') ||
+              path.startsWith('/cluster'))) {
         return '/auditor/dashboard';
       }
       if (role == AppConstants.roleClusterManager) {

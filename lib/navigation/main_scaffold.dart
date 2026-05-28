@@ -17,6 +17,33 @@ import '../features/action_plan_tracker/providers/action_plan_tracker_provider.d
 import '../features/projects/providers/project_provider.dart';
 import '../features/users/providers/user_provider.dart';
 
+/// Maps drilldown/detail routes to the nav item they originated from, so the
+/// sidebar / bottom-nav highlight stays anchored when the user opens a record
+/// detail. Detail routes don't have their own nav entry, but visually they
+/// should keep their parent tab active.
+String _activeNavRouteFor(String location) {
+  if (location.startsWith('/owner/action-plan/')) {
+    return '/owner/action-plans';
+  }
+  if (location.startsWith('/auditor/action-plan/')) {
+    return '/auditor/action-plans';
+  }
+  if (location.startsWith('/auditor/audit-details/') ||
+      location.startsWith('/auditor/audit/')) {
+    return '/auditor/dashboard';
+  }
+  if (location.startsWith('/auditor/report/')) {
+    return '/auditor/reports';
+  }
+  if (location.startsWith('/owner/review/')) {
+    return '/owner/dashboard';
+  }
+  if (location.startsWith('/cluster/audit/')) {
+    return '/cluster/dashboard';
+  }
+  return location;
+}
+
 class MainScaffold extends ConsumerWidget {
   const MainScaffold({
     super.key,
@@ -48,9 +75,18 @@ class MainScaffold extends ConsumerWidget {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final items = _navItemsForRole(auth.currentUser?.role ?? '');
     final title = _titleForLocation(location);
+    // Bottom nav only carries the first four nav items. Mobile users reach the
+    // rest from the drawer triggered by the topbar S-mark.
+    final mobileNavItems = items.take(4).toList();
+    final activeNavRoute = _activeNavRouteFor(location);
+    final hasMobileNavMatch = mobileNavItems
+        .any((item) => activeNavRoute.startsWith(item.route));
 
     return Scaffold(
       backgroundColor: AppColors.bgDeep,
+      drawer: isMobile
+          ? _MobileDrawer(items: items, location: location)
+          : null,
       body: Stack(
         children: [
           // Ambient dark canvas + faint S watermark + auroras.
@@ -103,15 +139,17 @@ class MainScaffold extends ConsumerWidget {
       ),
       bottomNavigationBar: isMobile
           ? _MobileNav(
-              items: items.take(4).toList(),
-              selectedIndex: _selectedIndex(items),
+              items: mobileNavItems,
+              selectedIndex: _selectedIndex(items, activeNavRoute),
+              hasActiveMatch: hasMobileNavMatch,
             )
           : null,
     );
   }
 
-  int _selectedIndex(List<_NavItem> items) {
-    final index = items.indexWhere((item) => location.startsWith(item.route));
+  int _selectedIndex(List<_NavItem> items, String activeRoute) {
+    final index =
+        items.indexWhere((item) => activeRoute.startsWith(item.route));
     if (index < 0) return 0;
     if (index > 3) return 3;
     return index;
@@ -240,24 +278,36 @@ class _TopBar extends ConsumerWidget {
       child: Row(
         children: [
           if (showMenuHint) ...[
-            Container(
-              width: 38,
-              height: 38,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: AppColors.surface2,
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: AppColors.line2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.30),
-                    blurRadius: 12,
+            // Builder gives us a context with the Scaffold ancestor so we
+            // can call openDrawer(). Without it the InkWell would be inside
+            // a context that resolves to MainScaffold's *parent*.
+            Builder(
+              builder: (ctx) => Tooltip(
+                message: 'Menu',
+                child: InkWell(
+                  onTap: () => Scaffold.of(ctx).openDrawer(),
+                  borderRadius: BorderRadius.circular(9),
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface2,
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: AppColors.line2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.30),
+                          blurRadius: 12,
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Image.asset(kSMarkAsset, fit: BoxFit.contain),
+                    ),
                   ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Image.asset(kSMarkAsset, fit: BoxFit.contain),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -529,7 +579,8 @@ class _Sidebar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               itemBuilder: (context, index) {
                 final item = items[index];
-                final selected = location.startsWith(item.route);
+                final activeRoute = _activeNavRouteFor(location);
+                final selected = activeRoute.startsWith(item.route);
                 return _SidebarItem(
                   item: item,
                   selected: selected,
@@ -736,13 +787,22 @@ class _MobileNav extends ConsumerWidget {
   const _MobileNav({
     required this.items,
     required this.selectedIndex,
+    required this.hasActiveMatch,
   });
 
   final List<_NavItem> items;
   final int selectedIndex;
 
+  /// When the current route isn't represented by any of the visible bottom-nav
+  /// items (e.g. /profile, /notifications, a detail page), we don't want the
+  /// bar to falsely highlight Dashboard. Hiding the indicator + greying the
+  /// "selected" icon keeps the user oriented.
+  final bool hasActiveMatch;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selectedIconColor =
+        hasActiveMatch ? AppColors.primary : AppColors.textMuted;
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
       decoration: BoxDecoration(
@@ -753,9 +813,11 @@ class _MobileNav extends ConsumerWidget {
         selectedIndex: selectedIndex.clamp(0, items.length - 1),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        indicatorColor: AppColors.primary.withValues(alpha: 0.18),
+        indicatorColor: hasActiveMatch
+            ? AppColors.primary.withValues(alpha: 0.18)
+            : Colors.transparent,
         onDestinationSelected: (index) {
-          if (index == selectedIndex) {
+          if (hasActiveMatch && index == selectedIndex) {
             MainScaffold._handlePageRefresh(ref, items[index].route);
           }
           context.go(items[index].route);
@@ -763,7 +825,7 @@ class _MobileNav extends ConsumerWidget {
         destinations: items.map((item) {
           return NavigationDestination(
             icon: Icon(item.icon, color: AppColors.textMuted),
-            selectedIcon: Icon(item.icon, color: AppColors.primary),
+            selectedIcon: Icon(item.icon, color: selectedIconColor),
             label: item.label,
           );
         }).toList(),
@@ -778,6 +840,152 @@ class _NavItem {
   final String label;
   final String route;
   final IconData icon;
+}
+
+/// Slide-in drawer used on mobile to surface every nav item — the bottom-bar
+/// only carries the first four, so without this users couldn't reach the rest.
+/// Mirrors [_Sidebar]'s layout but closes itself before navigating so the
+/// destination page isn't covered.
+class _MobileDrawer extends ConsumerWidget {
+  const _MobileDrawer({required this.items, required this.location});
+
+  final List<_NavItem> items;
+  final String location;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).currentUser;
+    return Drawer(
+      backgroundColor: AppColors.bgRaised,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: AppColors.line)),
+              ),
+              child: const _BrandLockup(),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+              child: Row(
+                children: [
+                  Text('WORKSPACE', style: AppTextStyles.eyebrow),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.greenTint,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                          color: AppColors.success.withValues(alpha: 0.28)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: AppColors.success,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Live',
+                          style: AppTextStyles.medium12.copyWith(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  final activeRoute = _activeNavRouteFor(location);
+                  final selected = activeRoute.startsWith(item.route);
+                  return _SidebarItem(
+                    item: item,
+                    selected: selected,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      if (selected) {
+                        MainScaffold._handlePageRefresh(ref, location);
+                      }
+                      context.go(item.route);
+                    },
+                  );
+                },
+                separatorBuilder: (_, __) => const SizedBox(height: 4),
+                itemCount: items.length,
+              ),
+            ),
+            if (user != null)
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: InkWell(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.go('/profile');
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface2,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.line),
+                    ),
+                    child: Row(
+                      children: [
+                        _RibbonAvatar(
+                          initials: user.avatarInitials,
+                          fallback: AppHelpers.avatarColorByRole(user.role),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                user.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.medium13,
+                              ),
+                              Text(
+                                AppHelpers.roleLabel(user.role),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.body11,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded,
+                            color: AppColors.textMuted, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Single-tap theme cycler — moves dark → light → system → dark.
