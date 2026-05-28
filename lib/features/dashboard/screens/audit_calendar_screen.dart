@@ -83,6 +83,7 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
   String? _filterProject;
   String? _filterIncharge;
   String? _filterClusterManager;
+  String? _filterAuditor;
   String? _filterAddress;
   String? _filterArea;
   String? _filterStatus;
@@ -192,6 +193,7 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
         'clusterManager': plan.clusterManager.isNotEmpty
             ? plan.clusterManager
             : '—',
+        'auditor': plan.auditorName.isNotEmpty ? plan.auditorName : '—',
         'address': plan.location.isNotEmpty ? plan.location : '—',
         'area': plan.location.isNotEmpty ? plan.location : '—',
         'planDate': plan.auditDate,
@@ -208,6 +210,9 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
     }
     if (_filterClusterManager != null) {
       rows = rows.where((r) => r['clusterManager'] == _filterClusterManager).toList();
+    }
+    if (_filterAuditor != null) {
+      rows = rows.where((r) => r['auditor'] == _filterAuditor).toList();
     }
     if (_filterAddress != null) {
       rows = rows.where((r) => r['address'] == _filterAddress).toList();
@@ -230,6 +235,7 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
     final uniqueProjects = rows.map((r) => r['projectName'] as String).toSet().toList();
     final uniqueIncharge = rows.map((r) => r['incharge'] as String).toSet().toList();
     final uniqueClusters = rows.map((r) => r['clusterManager'] as String).toSet().toList();
+    final uniqueAuditors = rows.map((r) => r['auditor'] as String).toSet().toList();
     final uniqueAddresses = rows.map((r) => r['address'] as String).toSet().toList();
     final uniqueAreas = rows.map((r) => r['area'] as String).toSet().toList();
     final uniqueStatuses = rows.map((r) => r['status'] as String).toSet().toList();
@@ -270,6 +276,14 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
               _filterClusterManager,
               uniqueClusters,
               (val) => setState(() => _filterClusterManager = val),
+            ),
+          ),
+          DataColumn(
+            label: _buildHeaderFilter(
+              'Auditor',
+              _filterAuditor,
+              uniqueAuditors,
+              (val) => setState(() => _filterAuditor = val),
             ),
           ),
           DataColumn(
@@ -332,6 +346,7 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
               DataCell(Text(row['projectName'])),
               DataCell(Text(row['incharge'])),
               DataCell(Text(row['clusterManager'])),
+              DataCell(Text(row['auditor'])),
               DataCell(Text(row['address'])),
               DataCell(Text(row['area'])),
               DataCell(Text(DateFormat('dd-MMM').format(row['planDate']))),
