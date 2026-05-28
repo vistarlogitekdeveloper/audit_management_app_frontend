@@ -39,6 +39,10 @@ class AuditRowWidget extends StatefulWidget {
 }
 
 class _AuditRowWidgetState extends State<AuditRowWidget> {
+  // Anchors the desktop popup menu directly under the evidence button so the
+  // picker doesn't fly to the bottom of the screen on a wide viewport.
+  final GlobalKey _evidenceKey = GlobalKey();
+
   bool get _answered => widget.selectedResult != null;
 
   bool get _remarkMissing => widget.remarkController.text.trim().isEmpty;
@@ -192,6 +196,7 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     _EvidenceControl(
+                      key: _evidenceKey,
                       imagePath: widget.imagePath,
                       isReadOnly: widget.isReadOnly,
                       onTap: widget.isReadOnly ? null : _pickPhoto,
@@ -210,9 +215,21 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
   }
 
   Future<void> _pickPhoto() async {
-    final source = await showModalBottomSheet<ImageSourceType>(
+    // On phones a modal bottom sheet is the natural pattern. On a desktop /
+    // wide viewport that sheet slides up from the screen bottom, far from
+    // the row's button — anchor a popup menu directly under the button
+    // instead so the choice appears right where you tapped.
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
+    final source = isCompact
+        ? await _pickFromBottomSheet()
+        : await _pickFromAnchoredMenu();
+    if (source != null) widget.onImagePicked(source);
+  }
+
+  Future<ImageSourceType?> _pickFromBottomSheet() {
+    return showModalBottomSheet<ImageSourceType>(
       context: context,
-      builder: (context) => SafeArea(
+      builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -223,18 +240,62 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
               title: const Text('Take Photo'),
-              onTap: () => Navigator.of(context).pop(ImageSourceType.camera),
+              onTap: () => Navigator.of(ctx).pop(ImageSourceType.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('Choose from Gallery'),
-              onTap: () => Navigator.of(context).pop(ImageSourceType.gallery),
+              onTap: () => Navigator.of(ctx).pop(ImageSourceType.gallery),
             ),
           ],
         ),
       ),
     );
-    if (source != null) widget.onImagePicked(source);
+  }
+
+  Future<ImageSourceType?> _pickFromAnchoredMenu() {
+    final buttonBox =
+        _evidenceKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (buttonBox == null || overlayBox == null) {
+      // Couldn't anchor — fall back so a click never appears broken.
+      return _pickFromBottomSheet();
+    }
+    final topLeft = buttonBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final size = buttonBox.size;
+    final position = RelativeRect.fromLTRB(
+      topLeft.dx,
+      topLeft.dy + size.height + 4,
+      overlayBox.size.width - topLeft.dx - size.width,
+      overlayBox.size.height - topLeft.dy - size.height,
+    );
+    return showMenu<ImageSourceType>(
+      context: context,
+      position: position,
+      items: const [
+        PopupMenuItem(
+          value: ImageSourceType.camera,
+          child: Row(
+            children: [
+              Icon(Icons.photo_camera_outlined, size: 18),
+              SizedBox(width: 10),
+              Text('Take Photo'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: ImageSourceType.gallery,
+          child: Row(
+            children: [
+              Icon(Icons.photo_library_outlined, size: 18),
+              SizedBox(width: 10),
+              Text('Choose from Gallery'),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -312,6 +373,7 @@ class _FieldLabel extends StatelessWidget {
 /// re-opens the picker so an existing photo can be replaced.
 class _EvidenceControl extends StatelessWidget {
   const _EvidenceControl({
+    super.key,
     required this.imagePath,
     required this.isReadOnly,
     required this.onTap,
