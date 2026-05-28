@@ -617,7 +617,14 @@ class _PassRatePanel extends StatelessWidget {
                 .map(
                   (item) => {
                     'name': item.clusterName,
-                    'percent': (item.passRate * 100).round(),
+                    // Scale-agnostic: the backend may send pass_rate as a
+                    // fraction (0.0–1.0) or an already-computed percentage
+                    // (0–100). Treat <= 1 as a fraction, otherwise as percent,
+                    // so the chart isn't pinned to a flat 100%.
+                    'percent': (item.passRate <= 1
+                            ? item.passRate * 100
+                            : item.passRate)
+                        .round(),
                   },
                 )
                 .toList(),
