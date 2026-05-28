@@ -277,7 +277,7 @@ class _HistoryCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined,
+                      Icon(Icons.location_on_outlined,
                           size: 13, color: AppColors.textMuted),
                       const SizedBox(width: 3),
                       Flexible(
@@ -288,7 +288,7 @@ class _HistoryCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Icon(Icons.event_outlined,
+                      Icon(Icons.event_outlined,
                           size: 13, color: AppColors.textMuted),
                       const SizedBox(width: 3),
                       Text(

@@ -183,7 +183,7 @@ class _HeroHeader extends StatelessWidget {
           label: const Text('Create plan'),
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.white,
-            foregroundColor: AppColors.primary,
+            foregroundColor: AppColors.ribbonPurple,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
@@ -196,7 +196,12 @@ class _HeroHeader extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        // Brand purple (from the logo) rather than the pink primary.
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.ribbonPurple, AppColors.ribbonViolet],
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: LayoutBuilder(
@@ -814,7 +819,7 @@ class _DashboardError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.cloud_off_outlined,
               color: AppColors.danger,
               size: 32,

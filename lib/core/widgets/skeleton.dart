@@ -3,14 +3,15 @@ import 'package:shimmer/shimmer.dart';
 
 import '../theme/app_colors.dart';
 
-/// A single shimmering rectangle. Use it as a placeholder for any element
-/// where the rendered shape is known but the content is still loading.
+/// Skeleton shimmer — sweeps a translucent rainbow band across a
+/// dark surface tile. Use as a placeholder for any element whose
+/// rendered shape is known but whose content is still loading.
 class Skeleton extends StatelessWidget {
   const Skeleton({
     super.key,
     this.width = double.infinity,
     this.height = 14,
-    this.radius = 6,
+    this.radius = 8,
   });
 
   final double width;
@@ -19,15 +20,27 @@ class Skeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: AppColors.greyTint,
-      highlightColor: AppColors.cardBackground,
+    // We build the rainbow sweep manually via Shimmer's gradient API.
+    // Pink + orange band over the dark surface2 base so the shimmer
+    // reads as part of the Vistar palette, not the stock white sweep.
+    return Shimmer(
       period: const Duration(milliseconds: 1300),
+      gradient: LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          AppColors.surface2,
+          AppColors.ribbonPink.withValues(alpha: 0.16),
+          AppColors.ribbonOrange.withValues(alpha: 0.12),
+          AppColors.surface2,
+        ],
+        stops: const [0.25, 0.45, 0.55, 0.75],
+      ),
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: AppColors.greyTint,
+          color: AppColors.surface2,
           borderRadius: BorderRadius.circular(radius),
         ),
       ),
@@ -54,9 +67,9 @@ class SkeletonRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Skeleton(height: 12, radius: 4),
+              Skeleton(height: 12, radius: 6),
               SizedBox(height: 8),
-              Skeleton(width: 180, height: 10, radius: 4),
+              Skeleton(width: 180, height: 10, radius: 6),
             ],
           ),
         ),
@@ -67,33 +80,33 @@ class SkeletonRow extends StatelessWidget {
 
 /// Generic card-shaped placeholder for KPI tiles and dashboard widgets.
 class SkeletonCard extends StatelessWidget {
-  const SkeletonCard({super.key, this.height = 88});
+  const SkeletonCard({super.key, this.height = 96});
   final double height;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: height,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line),
       ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Skeleton(width: 32, height: 32, radius: 8),
+              Skeleton(width: 38, height: 38, radius: 11),
               Spacer(),
-              Skeleton(width: 48, height: 12, radius: 4),
+              Skeleton(width: 48, height: 12, radius: 6),
             ],
           ),
           Spacer(),
-          Skeleton(width: 80, height: 22, radius: 6),
-          SizedBox(height: 6),
-          Skeleton(width: 120, height: 10, radius: 4),
+          Skeleton(width: 90, height: 26, radius: 8),
+          SizedBox(height: 8),
+          Skeleton(width: 130, height: 10, radius: 6),
         ],
       ),
     );

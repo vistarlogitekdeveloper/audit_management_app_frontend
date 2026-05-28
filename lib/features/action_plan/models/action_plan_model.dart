@@ -9,6 +9,9 @@ class ActionPlanModel {
     this.status = 'pending',
     this.submittedAt,
     this.daysRemaining,
+    this.closeRemark = '',
+    this.closedAt,
+    this.closedBy,
   });
 
   final String id;
@@ -18,6 +21,26 @@ class ActionPlanModel {
   final String status;
   final DateTime? submittedAt;
   final int? daysRemaining;
+
+  /// Auditor's optional note left when closing the plan.
+  final String closeRemark;
+
+  /// When the auditor closed the plan (null until closed).
+  final DateTime? closedAt;
+
+  /// Auditor who closed the plan, if surfaced by the backend.
+  final ReviewerRef? closedBy;
+
+  bool get isClosed => status.toLowerCase() == 'closed' || closedAt != null;
+
+  /// True when every item is review_status = 'approved' — i.e. the plan is
+  /// ready for the auditor to close. Mirrors the backend's
+  /// is_review_complete flag (used for the per-plan summary), with a local
+  /// fallback in case the response doesn't include it.
+  bool get isReviewComplete {
+    if (items.isEmpty) return false;
+    return items.every((i) => i.reviewStatus == 'approved');
+  }
 
   factory ActionPlanModel.fromJson(Map<String, dynamic> json) {
     return ActionPlanModel(
@@ -44,7 +67,38 @@ class ActionPlanModel {
       daysRemaining: json['daysRemaining'] == null
           ? null
           : AppHelpers.parseInt(json['daysRemaining']),
+      closeRemark: json['close_remark']?.toString() ??
+          json['closeRemark']?.toString() ??
+          '',
+      closedAt: DateTime.tryParse(
+        json['closed_at']?.toString() ?? json['closedAt']?.toString() ?? '',
+      ),
+      closedBy: ReviewerRef.fromAny(json['closed_by'] ?? json['closedBy']),
     );
+  }
+}
+
+/// Lightweight user reference returned by the backend for review / close
+/// audit trail (reviewed_by, closed_by). Carries just an id + name; the
+/// backend may also send the raw id string instead of a nested object, so
+/// [fromAny] handles both.
+class ReviewerRef {
+  const ReviewerRef({required this.id, required this.name});
+
+  final String id;
+  final String name;
+
+  static ReviewerRef? fromAny(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is Map) {
+      final id = raw['id']?.toString() ?? '';
+      final name = raw['name']?.toString() ?? '';
+      if (id.isEmpty && name.isEmpty) return null;
+      return ReviewerRef(id: id, name: name);
+    }
+    final id = raw.toString();
+    if (id.isEmpty) return null;
+    return ReviewerRef(id: id, name: '');
   }
 }
 
@@ -58,6 +112,9 @@ class ActionItemModel {
     required this.dueDate,
     required this.status,
     this.auditorRemark = '',
+    this.reviewStatus = 'pending',
+    this.reviewedBy,
+    this.reviewedAt,
   });
 
   /// Backend ActionItem id (null for items not yet persisted).
@@ -73,7 +130,24 @@ class ActionItemModel {
 
   /// Title-Case for the dropdown UI ("Open" / "In Progress" / "Closed").
   final String status;
+
+  /// Free-form note left by the auditor when reviewing the item. Required
+  /// when the auditor rejects; optional when approved.
   final String auditorRemark;
+
+  /// Auditor's verdict — 'pending' (default), 'approved', or 'rejected'.
+  /// Backend resets this to 'pending' when the owner edits a rejected item.
+  final String reviewStatus;
+
+  /// Auditor who set the current reviewStatus (null when never reviewed or
+  /// after a reset).
+  final ReviewerRef? reviewedBy;
+
+  /// When the auditor set the current reviewStatus.
+  final DateTime? reviewedAt;
+
+  bool get isApproved => reviewStatus == 'approved';
+  bool get isRejected => reviewStatus == 'rejected';
 
   ActionItemModel copyWith({
     String? id,
@@ -84,6 +158,9 @@ class ActionItemModel {
     DateTime? dueDate,
     String? status,
     String? auditorRemark,
+    String? reviewStatus,
+    ReviewerRef? reviewedBy,
+    DateTime? reviewedAt,
   }) {
     return ActionItemModel(
       id: id ?? this.id,
@@ -94,6 +171,9 @@ class ActionItemModel {
       dueDate: dueDate ?? this.dueDate,
       status: status ?? this.status,
       auditorRemark: auditorRemark ?? this.auditorRemark,
+      reviewStatus: reviewStatus ?? this.reviewStatus,
+      reviewedBy: reviewedBy ?? this.reviewedBy,
+      reviewedAt: reviewedAt ?? this.reviewedAt,
     );
   }
 
@@ -126,7 +206,17 @@ class ActionItemModel {
       status: _statusToDisplay(
         json['status']?.toString() ?? 'open',
       ),
-      auditorRemark: json['auditorRemark']?.toString() ?? '',
+      auditorRemark: json['auditor_remark']?.toString() ??
+          json['auditorRemark']?.toString() ??
+          '',
+      reviewStatus: (json['review_status']?.toString() ??
+              json['reviewStatus']?.toString() ??
+              'pending')
+          .toLowerCase(),
+      reviewedBy: ReviewerRef.fromAny(json['reviewed_by'] ?? json['reviewedBy']),
+      reviewedAt: DateTime.tryParse(
+        json['reviewed_at']?.toString() ?? json['reviewedAt']?.toString() ?? '',
+      ),
     );
   }
 

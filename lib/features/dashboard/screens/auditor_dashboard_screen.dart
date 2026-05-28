@@ -366,7 +366,7 @@ class _AuditMobileCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.location_on_outlined,
+                          Icon(Icons.location_on_outlined,
                               size: 13, color: AppColors.textMuted),
                           const SizedBox(width: 3),
                           Flexible(
@@ -388,7 +388,7 @@ class _AuditMobileCard extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.event_outlined, size: 13, color: AppColors.textMuted),
+                Icon(Icons.event_outlined, size: 13, color: AppColors.textMuted),
                 const SizedBox(width: 4),
                 Text(AppDateUtils.formatDisplay(audit.date), style: AppTextStyles.body12),
               ],
@@ -485,7 +485,7 @@ class _ErrorPanel extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: AppColors.danger, size: 40),
+            Icon(Icons.error_outline, color: AppColors.danger, size: 40),
             const SizedBox(height: 12),
             Text('Failed to load dashboard', style: AppTextStyles.medium14),
             const SizedBox(height: 6),

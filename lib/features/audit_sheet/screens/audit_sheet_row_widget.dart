@@ -61,7 +61,9 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        // Mode-aware surface so the card (and its text) stays legible in dark
+        // mode — a hardcoded white card hid the light-on-light text.
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: invalid ? AppColors.danger : AppColors.border,
@@ -162,11 +164,11 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide: BorderSide(color: AppColors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide: BorderSide(color: AppColors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -257,7 +259,7 @@ class _IndexBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: answered
-          ? const Icon(Icons.check_rounded,
+          ? Icon(Icons.check_rounded,
               size: 16, color: AppColors.secondary)
           : Text(
               '$index',
@@ -327,7 +329,7 @@ class _EvidenceControl extends StatelessWidget {
       if (isReadOnly) {
         return Row(
           children: [
-            const Icon(Icons.image_not_supported_outlined,
+            Icon(Icons.image_not_supported_outlined,
                 size: 18, color: AppColors.textMuted),
             const SizedBox(width: 6),
             Text('No evidence', style: AppTextStyles.body12),
@@ -492,7 +494,7 @@ class _ResultChip extends StatelessWidget {
           height: 42,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? selectedColor : AppColors.white,
+            color: active ? selectedColor : AppColors.surface2,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: active ? borderColor : AppColors.border,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
@@ -10,6 +11,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../../core/widgets/status_pill.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../models/action_plan_summary.dart';
 import '../providers/action_plan_tracker_provider.dart';
 
@@ -39,6 +41,38 @@ class _ActionPlanTrackerScreenState
   void initState() {
     super.initState();
     Future.microtask(() => ref.read(actionPlanTrackerProvider).fetch());
+  }
+
+  /// Wraps each summary in a [_PlanCard] and resolves the deep-link target
+  /// from the current user's role: auditors jump into the review screen,
+  /// owners into the edit screen, and cluster managers stay on the
+  /// read-only audit report. Routing here (rather than inside _PlanCard)
+  /// keeps the card a dumb presentation widget.
+  List<Widget> _buildCards(List<ActionPlanSummary> plans) {
+    final role = AppConstants.normalizeRole(
+      ref.watch(authProvider).currentUser?.role,
+    );
+    String routeFor(ActionPlanSummary plan) {
+      if (role == AppConstants.roleAuditor) {
+        return '/auditor/action-plan/${plan.auditSheetId}';
+      }
+      if (widget.readOnly) return '/cluster/audit/${plan.auditPlanId}';
+      return '/owner/action-plan/${plan.auditSheetId}';
+    }
+
+    return plans
+        .map(
+          (plan) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _PlanCard(
+              plan: plan,
+              showReviewCounts: role == AppConstants.roleAuditor,
+              readOnly: widget.readOnly,
+              onOpen: () => context.go(routeFor(plan)),
+            ),
+          ),
+        )
+        .toList();
   }
 
   @override
@@ -94,7 +128,7 @@ class _ActionPlanTrackerScreenState
             AppPanel(
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline,
+                  Icon(Icons.error_outline,
                       color: AppColors.danger, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
@@ -124,26 +158,7 @@ class _ActionPlanTrackerScreenState
               ),
             )
           else
-            ...provider.visible.map(
-              (plan) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _PlanCard(
-                  plan: plan,
-                  readOnly: widget.readOnly,
-                  onOpen: () {
-                    // Cluster view opens the read-only audit report, keyed by
-                    // audit *plan* id (GET /reports/:auditPlanId). The owner
-                    // edit flow opens ActionPlanScreen, which loads the plan by
-                    // audit *sheet* id (GET /action-plans/:auditSheetId) — see
-                    // ActionPlanService.getActionPlan.
-                    final route = widget.readOnly
-                        ? '/cluster/audit/${plan.auditPlanId}'
-                        : '/owner/action-plan/${plan.auditSheetId}';
-                    context.go(route);
-                  },
-                ),
-              ),
-            ),
+            ..._buildCards(provider.visible),
         ],
       ),
     );
@@ -155,11 +170,17 @@ class _PlanCard extends StatelessWidget {
     required this.plan,
     required this.readOnly,
     required this.onOpen,
+    this.showReviewCounts = false,
   });
 
   final ActionPlanSummary plan;
   final bool readOnly;
   final VoidCallback onOpen;
+
+  /// Auditors get a second chip row with review counters
+  /// (Pending review / Approved / Rejected) so they can spot plans that
+  /// still need attention without opening each one.
+  final bool showReviewCounts;
 
   @override
   Widget build(BuildContext context) {
@@ -196,22 +217,21 @@ class _PlanCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _Chip(label: 'Total', value: '${plan.itemsTotal}'),
-                const SizedBox(width: 8),
                 _Chip(
                   label: 'Open',
                   value: '${plan.itemsOpen}',
                   color: AppColors.warning,
                 ),
-                const SizedBox(width: 8),
                 _Chip(
                   label: 'In Progress',
                   value: '${plan.itemsInProgress}',
                   color: AppColors.primary,
                 ),
-                const SizedBox(width: 8),
                 _Chip(
                   label: 'Closed',
                   value: '${plan.itemsClosed}',
@@ -219,10 +239,34 @@ class _PlanCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (showReviewCounts) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _Chip(
+                    label: 'Pending review',
+                    value: '${plan.itemsReviewPending}',
+                    color: AppColors.warning,
+                  ),
+                  _Chip(
+                    label: 'Approved',
+                    value: '${plan.itemsReviewApproved}',
+                    color: AppColors.success,
+                  ),
+                  _Chip(
+                    label: 'Rejected',
+                    value: '${plan.itemsReviewRejected}',
+                    color: AppColors.danger,
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.event_busy_outlined,
+                Icon(Icons.event_busy_outlined,
                     size: 14, color: AppColors.textMuted),
                 const SizedBox(width: 4),
                 Text(
@@ -237,11 +281,16 @@ class _PlanCard extends StatelessWidget {
                   style: AppTextStyles.medium12.copyWith(color: dueColor),
                 ),
                 const Spacer(),
-                if (!readOnly)
+                if (!readOnly || showReviewCounts)
                   TextButton.icon(
                     onPressed: onOpen,
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    label: const Text('Edit'),
+                    icon: Icon(
+                      showReviewCounts
+                          ? Icons.rate_review_outlined
+                          : Icons.edit_outlined,
+                      size: 16,
+                    ),
+                    label: Text(showReviewCounts ? 'Review' : 'Edit'),
                   ),
               ],
             ),

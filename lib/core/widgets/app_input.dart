@@ -3,12 +3,11 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
-/// Polished text input. Now supports:
-///   • Animated focus halo and label colour
-///   • Optional prefix icon
-///   • Helper text + character counter
-///   • Read-only "chip" look (gray fill)
-///   • Compact ("dense") density
+/// Polished text input on the Vistar dark surface. Animated focus
+/// halo in ribbon pink, a small label that adopts the focus color,
+/// dim placeholder, and an optional show/hide toggle for password
+/// fields. Read-only inputs get a slightly lifted fill so they read
+/// as "chip" cells.
 class AppInput extends StatefulWidget {
   const AppInput({
     super.key,
@@ -82,20 +81,20 @@ class _AppInputState extends State<AppInput> {
   Widget build(BuildContext context) {
     final hasObscureToggle = widget.obscureText;
     final fill = !widget.enabled
-        ? AppColors.greyTint
-        : (widget.isReadOnly ? AppColors.greyTint : AppColors.white);
+        ? AppColors.surface2
+        : (widget.isReadOnly ? AppColors.surface2 : AppColors.surface);
 
     final field = AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
+      duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(11),
         boxShadow: _focused && widget.enabled
             ? [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.10),
+                  color: AppColors.primary.withValues(alpha: 0.18),
                   blurRadius: 0,
-                  spreadRadius: 3,
+                  spreadRadius: 4,
                 ),
               ]
             : const [],
@@ -114,6 +113,7 @@ class _AppInputState extends State<AppInput> {
         onChanged: widget.onChanged,
         autofocus: widget.autofocus,
         style: AppTextStyles.body14,
+        cursorColor: AppColors.primary,
         decoration: InputDecoration(
           fillColor: fill,
           isDense: widget.dense,
@@ -149,10 +149,11 @@ class _AppInputState extends State<AppInput> {
         Text(
           widget.label,
           style: AppTextStyles.medium13.copyWith(
-            color: _focused ? AppColors.primary : AppColors.textPrimary,
+            color: _focused ? AppColors.primary : AppColors.textSecondary,
+            letterSpacing: 0.3,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 7),
         field,
       ],
     );

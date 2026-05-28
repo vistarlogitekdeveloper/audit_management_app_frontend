@@ -82,7 +82,7 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
             AppPanel(
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline,
+                  Icon(Icons.error_outline,
                       color: AppColors.danger, size: 20),
                   const SizedBox(width: 10),
                   Expanded(

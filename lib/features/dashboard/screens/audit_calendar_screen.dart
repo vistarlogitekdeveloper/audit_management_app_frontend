@@ -20,12 +20,14 @@ class _AuditCalendarScreenState extends ConsumerState<AuditCalendarScreen> {
   @override
   void initState() {
     super.initState();
-    // The incharge / cluster-manager names come from the project lookup
-    // (GET /projects). Make sure it's loaded — navigating straight to the
-    // calendar otherwise leaves those columns blank.
+    // The table reads the full audit-plan list directly (GET /audit-plans),
+    // because the dashboard's upcomingAudits filters by status and hides
+    // acknowledged / closed plans — leaving the table blank even when plans
+    // exist. fetchPlans() returns every plan with project / incharge /
+    // cluster manager nested, which is everything the table needs.
     Future.microtask(() {
       final planProvider = ref.read(auditPlanProvider);
-      if (planProvider.projects.isEmpty) planProvider.fetchProjects();
+      if (planProvider.plans.isEmpty) planProvider.fetchPlans();
     });
   }
 
@@ -40,12 +42,15 @@ class _AuditCalendarScreenState extends ConsumerState<AuditCalendarScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: AppColors.danger, size: 32),
+            Icon(Icons.error_outline, color: AppColors.danger, size: 32),
             const SizedBox(height: 12),
             Text('Failed to load data', style: AppTextStyles.title16),
             const SizedBox(height: 10),
             FilledButton.icon(
-              onPressed: () => ref.invalidate(adminDashboardProvider),
+              onPressed: () {
+                ref.invalidate(adminDashboardProvider);
+                ref.read(auditPlanProvider).fetchPlans();
+              },
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Retry'),
             ),
@@ -164,44 +169,33 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
   Widget _buildTable() {
     List<Map<String, dynamic>> rows = [];
 
-    // Combine data
-    for (var audit in widget.dashboard.upcomingAudits) {
-      final project = widget.dashboard.allProjects.firstWhere(
-        (p) => p.id == audit.projectId,
-        orElse: () => Project(
-          id: audit.projectId,
-          name: 'Unknown',
-          location: audit.location,
-          isActive: true,
-        ),
+    // Show a loading placeholder while the audit-plans list is being fetched
+    // for the first time.
+    if (widget.auditPlanState.isLoading &&
+        widget.auditPlanState.plans.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(32),
+        child: Center(child: CircularProgressIndicator()),
       );
+    }
 
-      // The incharge & cluster-manager *names* live on the richer project
-      // lookup (GET /projects), keyed by project id — the audit row only
-      // carries ids. The previous code matched the cluster manager by
-      // auditorId (surfacing the auditor's name, e.g. "Test Auditor") and used
-      // project.clientName (the company name) for the incharge; both wrong.
-      final projectLookup = widget.auditPlanState.projects
-          .where((p) => p.id == audit.projectId)
-          .firstOrNull;
-
-      final inchargeName = (projectLookup?.inchargeName.isNotEmpty ?? false)
-          ? projectLookup!.inchargeName
-          : '—';
-      final clusterManagerName =
-          (projectLookup?.clusterManagerName.isNotEmpty ?? false)
-              ? projectLookup!.clusterManagerName
-              : '—';
-
+    // Build rows straight from the audit-plans response. Each plan already
+    // carries the nested project, projectIncharge and clusterManager objects,
+    // so no separate /projects lookup is needed.
+    for (final plan in widget.auditPlanState.plans) {
       rows.add({
-        'auditId': audit.id,
-        'projectName': project.name,
-        'incharge': inchargeName,
-        'clusterManager': clusterManagerName,
-        'address': audit.location,
-        'area': audit.location, // Using location as area proxy
-        'planDate': audit.auditDate,
-        'status': audit.status,
+        'auditId': plan.id,
+        'projectName': plan.projectName.isNotEmpty ? plan.projectName : '—',
+        'incharge': plan.projectIncharge.isNotEmpty
+            ? plan.projectIncharge
+            : '—',
+        'clusterManager': plan.clusterManager.isNotEmpty
+            ? plan.clusterManager
+            : '—',
+        'address': plan.location.isNotEmpty ? plan.location : '—',
+        'area': plan.location.isNotEmpty ? plan.location : '—',
+        'planDate': plan.auditDate,
+        'status': plan.status,
       });
     }
 
@@ -243,8 +237,12 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
-        headingRowColor: WidgetStateProperty.all(const Color(0xFFF2B08B)), // Matching the peach color from image
-        headingTextStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+        headingRowColor: WidgetStateProperty.all(AppColors.surface2),
+        headingTextStyle: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+          letterSpacing: 0.4,
+        ),
         dataRowMaxHeight: 60,
         dataRowMinHeight: 48,
         columnSpacing: 20,

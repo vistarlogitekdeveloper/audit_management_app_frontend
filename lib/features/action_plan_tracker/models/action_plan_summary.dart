@@ -16,6 +16,10 @@ class ActionPlanSummary {
     required this.itemsClosed,
     required this.daysRemaining,
     this.auditorName = '',
+    this.itemsReviewPending = 0,
+    this.itemsReviewApproved = 0,
+    this.itemsReviewRejected = 0,
+    this.isReviewComplete = false,
   });
 
   final String id;
@@ -32,6 +36,16 @@ class ActionPlanSummary {
   final int itemsClosed;
   final int daysRemaining;
   final String auditorName;
+
+  /// Per-item review state counters introduced for the auditor review flow.
+  /// Default to 0 when the backend hasn't populated them yet.
+  final int itemsReviewPending;
+  final int itemsReviewApproved;
+  final int itemsReviewRejected;
+
+  /// Backend flag: true when every item is review_status = 'approved'.
+  /// Used to enable the auditor's "Close Audit" button.
+  final bool isReviewComplete;
 
   bool get isOverdue => status == 'overdue' || daysRemaining < 0;
   bool get isClosed => status == 'closed' || itemsTotal > 0 && itemsClosed == itemsTotal;
@@ -56,6 +70,10 @@ class ActionPlanSummary {
       itemsClosed: AppHelpers.parseInt(json['items_closed']),
       daysRemaining: AppHelpers.parseInt(json['daysRemaining']),
       auditorName: auditor?['name']?.toString() ?? '',
+      itemsReviewPending: AppHelpers.parseInt(json['items_review_pending']),
+      itemsReviewApproved: AppHelpers.parseInt(json['items_review_approved']),
+      itemsReviewRejected: AppHelpers.parseInt(json['items_review_rejected']),
+      isReviewComplete: json['is_review_complete'] == true,
     );
   }
 }

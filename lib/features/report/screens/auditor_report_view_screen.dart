@@ -108,7 +108,7 @@ class _AcknowledgementBanner extends StatelessWidget {
       return AppPanel(
         child: Row(
           children: [
-            const Icon(Icons.error_outline,
+            Icon(Icons.error_outline,
                 color: AppColors.danger, size: 20),
             const SizedBox(width: 10),
             const Expanded(
@@ -143,7 +143,7 @@ class _AcknowledgementBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.lock_outline,
+            Icon(Icons.lock_outline,
                 color: AppColors.success, size: 20),
             const SizedBox(width: 10),
             Expanded(
@@ -169,7 +169,7 @@ class _AcknowledgementBanner extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.hourglass_top_rounded,
+              Icon(Icons.hourglass_top_rounded,
                   color: AppColors.warning, size: 20),
               const SizedBox(width: 10),
               ConstrainedBox(

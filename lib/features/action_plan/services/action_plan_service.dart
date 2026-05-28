@@ -50,4 +50,37 @@ class ActionPlanService {
     );
     return ActionPlanModel.fromJson(_apiService.extractObject(response));
   }
+
+  /// Auditor verdict on a single item. [reviewStatus] is 'approved' or
+  /// 'rejected'; [remark] is required when rejecting. Returns the updated
+  /// item only (same shape as items in GET /action-plans/:auditSheetId).
+  Future<ActionItemModel> reviewItem({
+    required String planId,
+    required String itemId,
+    required String reviewStatus,
+    String? remark,
+  }) async {
+    final response = await _apiService.patch(
+      ApiConstants.actionPlanItemReview(planId, itemId),
+      data: {
+        'review_status': reviewStatus,
+        if (remark != null && remark.trim().isNotEmpty) 'remark': remark.trim(),
+      },
+    );
+    return ActionItemModel.fromJson(_apiService.extractObject(response));
+  }
+
+  /// Auditor closes the plan. Backend 409s if any item is not approved.
+  Future<ActionPlanModel> closePlan({
+    required String planId,
+    String? remark,
+  }) async {
+    final response = await _apiService.post(
+      ApiConstants.actionPlanClose(planId),
+      data: {
+        if (remark != null && remark.trim().isNotEmpty) 'remark': remark.trim(),
+      },
+    );
+    return ActionPlanModel.fromJson(_apiService.extractObject(response));
+  }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/api_service.dart';
+import '../../action_plan_tracker/providers/action_plan_tracker_provider.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../models/action_plan_model.dart';
 import '../services/action_plan_service.dart';
@@ -24,6 +25,11 @@ class ActionPlanProvider extends ChangeNotifier {
   List<ActionItemModel> items = [];
   bool isLoading = false;
   String? error;
+
+  /// True while the auditor's per-item review or plan-close call is in flight.
+  /// Distinct from [isLoading] so the page-level overlay doesn't fire on
+  /// every Approve/Reject tap.
+  bool isReviewing = false;
 
   /// Loads an existing action plan (created by acknowledge). Caller can pass
   /// [fallbackItems] (built from the audit sheet's fail rows) to display
@@ -96,6 +102,66 @@ class ActionPlanProvider extends ChangeNotifier {
       rethrow;
     } finally {
       isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Auditor approves / rejects a single item. Backend returns the updated
+  /// item; we swap it back into [items] by id so the UI updates without a
+  /// full reload.
+  Future<void> reviewItem({
+    required String itemId,
+    required String reviewStatus,
+    String? remark,
+  }) async {
+    final plan = currentPlan;
+    if (plan == null || plan.id.isEmpty) {
+      throw StateError('No action plan loaded.');
+    }
+    isReviewing = true;
+    error = null;
+    notifyListeners();
+    try {
+      final updated = await _service.reviewItem(
+        planId: plan.id,
+        itemId: itemId,
+        reviewStatus: reviewStatus,
+        remark: remark,
+      );
+      final idx = items.indexWhere((i) => i.id == itemId);
+      if (idx >= 0) items[idx] = updated;
+      // Per-plan totals on the tracker depend on per-item review state;
+      // invalidate so the auditor's list pills refresh next time it opens.
+      _ref.read(actionPlanTrackerProvider).fetch();
+    } catch (e) {
+      error = e.toString();
+      rethrow;
+    } finally {
+      isReviewing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Auditor closes the plan. Backend 409s if any item is not approved —
+  /// the caller surfaces the message; we just propagate the error.
+  Future<void> closePlan({String? remark}) async {
+    final plan = currentPlan;
+    if (plan == null || plan.id.isEmpty) {
+      throw StateError('No action plan loaded.');
+    }
+    isReviewing = true;
+    error = null;
+    notifyListeners();
+    try {
+      currentPlan = await _service.closePlan(planId: plan.id, remark: remark);
+      items = currentPlan!.items.isNotEmpty ? currentPlan!.items : items;
+      _ref.read(actionPlanTrackerProvider).fetch();
+      _ref.invalidate(ownerDashboardProvider);
+    } catch (e) {
+      error = e.toString();
+      rethrow;
+    } finally {
+      isReviewing = false;
       notifyListeners();
     }
   }

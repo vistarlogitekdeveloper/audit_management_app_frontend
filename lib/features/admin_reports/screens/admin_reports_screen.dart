@@ -84,7 +84,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.cloud_off_rounded,
+                Icon(Icons.cloud_off_rounded,
                     color: AppColors.danger, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
@@ -607,9 +607,9 @@ class _PickerSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
