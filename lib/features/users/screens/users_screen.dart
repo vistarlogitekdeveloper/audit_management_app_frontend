@@ -243,12 +243,12 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
       AppConstants.normalizeRole(role).isEmpty ? role : AppConstants.normalizeRole(role);
 
   Future<void> _showUserSheet(BuildContext context, {UserModel? user}) async {
-    // On a wide viewport (laptop), the bottom sheet slides up from the
-    // screen edge — far from whichever row's Edit button the user clicked.
-    // Show a centered Dialog instead so the form appears where the user is
-    // looking. On phones the bottom sheet is still the natural pattern.
-    final isCompact = MediaQuery.sizeOf(context).width < 600;
-
+    // Always a centered Dialog. The previous bottom-sheet path put the
+    // form at the screen edge, far from whichever row's Edit button was
+    // clicked — even on narrowed laptop windows that still feel like
+    // desktop. The form wraps itself in SingleChildScrollView so on a
+    // small viewport it just scrolls; the screen-edge inset shrinks as
+    // the viewport narrows so the card never hugs the edges.
     Future<void> handleSubmit(
       BuildContext popupContext,
       Map<String, dynamic> payload,
@@ -272,51 +272,39 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
       }
     }
 
-    if (isCompact) {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: AppColors.background,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        builder: (sheetContext) => Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 18,
-            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
-          ),
-          child: _UserForm(
-            existing: user,
-            onSubmit: (payload) => handleSubmit(sheetContext, payload),
-          ),
-        ),
-      );
-      return;
-    }
-
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: AppColors.background,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: AppColors.line),
-        ),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480, maxHeight: 640),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-            child: _UserForm(
-              existing: user,
-              onSubmit: (payload) => handleSubmit(dialogContext, payload),
+      builder: (dialogContext) {
+        final media = MediaQuery.sizeOf(dialogContext);
+        final isNarrow = media.width < 480;
+        final horizontalInset = isNarrow ? 16.0 : 40.0;
+        final verticalInset = isNarrow ? 24.0 : 32.0;
+        return Dialog(
+          backgroundColor: AppColors.background,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppColors.line),
+          ),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: horizontalInset,
+            vertical: verticalInset,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 480,
+              maxHeight: media.height - (verticalInset * 2),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+              child: _UserForm(
+                existing: user,
+                onSubmit: (payload) => handleSubmit(dialogContext, payload),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
