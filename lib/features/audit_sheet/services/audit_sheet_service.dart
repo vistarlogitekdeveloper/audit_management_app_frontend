@@ -8,6 +8,22 @@ import '../../../core/services/api_service.dart';
 import '../models/audit_parameter_model.dart';
 import '../models/audit_sheet_model.dart';
 
+/// Picks a `DioMediaType` (aliased `MediaType` from http_parser) for an
+/// evidence upload based on the filename extension. Defaults to
+/// `image/jpeg` because (a) it's what the picker hands back in the vast
+/// majority of cases and (b) it's what the backend expects when the
+/// filename is missing entirely. multer's fileFilter rejects parts with no
+/// Content-Type, which surfaces as "Image is required" on the server side.
+DioMediaType _imageMediaTypeFor(String filename) {
+  final lower = filename.toLowerCase();
+  if (lower.endsWith('.png')) return DioMediaType('image', 'png');
+  if (lower.endsWith('.gif')) return DioMediaType('image', 'gif');
+  if (lower.endsWith('.webp')) return DioMediaType('image', 'webp');
+  if (lower.endsWith('.heic')) return DioMediaType('image', 'heic');
+  if (lower.endsWith('.heif')) return DioMediaType('image', 'heif');
+  return DioMediaType('image', 'jpeg');
+}
+
 class AcknowledgeResult {
   const AcknowledgeResult({required this.hasFailPoints, this.actionPlanId});
   final bool hasFailPoints;
@@ -70,9 +86,19 @@ class AuditSheetService {
     required int paramIndex,
     required String filePath,
   }) async {
+    // Extract a basename for the part's Content-Disposition `filename=`
+    // (multer rejects parts without one) and pick an `image/...`
+    // Content-Type so multer's fileFilter accepts the part as a file.
+    final basename =
+        filePath.split(RegExp(r'[\\/]')).last.split('?').first;
+    final filename = basename.isEmpty ? 'photo.jpg' : basename;
     final formData = FormData.fromMap({
       'param_index': paramIndex,
-      'image': await MultipartFile.fromFile(filePath),
+      'image': await MultipartFile.fromFile(
+        filePath,
+        filename: filename,
+        contentType: _imageMediaTypeFor(filename),
+      ),
     });
     final response = await _apiService.upload(
       ApiConstants.uploadAuditSheetImage(auditId),
@@ -101,9 +127,20 @@ class AuditSheetService {
     required Uint8List bytes,
     required String filename,
   }) async {
+    // On web some pickers hand back `XFile.name = ""` (camera captures,
+    // certain browsers). Dio drops the part's `filename=` header when the
+    // filename is empty, and multer then treats it as a plain form field
+    // instead of a file — backend responds "Image is required". Fall back
+    // to a sensible name + explicit image Content-Type so the part is
+    // recognised regardless.
+    final safeName = filename.isEmpty ? 'photo.jpg' : filename;
     final formData = FormData.fromMap({
       'param_index': paramIndex,
-      'image': MultipartFile.fromBytes(bytes, filename: filename),
+      'image': MultipartFile.fromBytes(
+        bytes,
+        filename: safeName,
+        contentType: _imageMediaTypeFor(safeName),
+      ),
     });
     final response = await _apiService.upload(
       ApiConstants.uploadAuditSheetImage(auditId),
