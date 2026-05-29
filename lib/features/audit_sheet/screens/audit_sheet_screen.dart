@@ -218,7 +218,12 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                               parameterName: parameter.name,
                               selectedResult: row?.result,
                               remarkController: controller,
-                              imagePath: row?.imagePath,
+                              imagePaths: row?.imagePaths ?? const [],
+                              onImageRemoved: (photoIndex) {
+                                ref
+                                    .read(auditSheetProvider)
+                                    .removeImageAt(parameter.index, photoIndex);
+                              },
                               showValidation: _showValidation,
                               isReadOnly: isAcknowledged,
                               onResultChanged: (result) {
@@ -260,7 +265,7 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                   final bytes = await file.readAsBytes();
                                   if (bytes.length >
                                       AppConstants.maxImageSizeBytes) {
-                                    provider.setImage(
+                                    provider.addImage(
                                         parameter.index, file.path);
                                     if (!context.mounted) return;
                                     AppHelpers.showErrorSnackbar(
@@ -299,7 +304,7 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                   // don't upload. Keep the picked photo as a
                                   // local preview so the auditor can see what
                                   // they chose and pick a smaller one.
-                                  provider.setImage(parameter.index, file.path);
+                                  provider.addImage(parameter.index, file.path);
                                   if (!context.mounted) return;
                                   AppHelpers.showErrorSnackbar(
                                       context, e.message);

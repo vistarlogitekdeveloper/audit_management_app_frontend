@@ -128,7 +128,10 @@ class AuditSheetProvider extends ChangeNotifier {
                 parameter.index: AuditRowState(
                   result: parameter.result,
                   remark: parameter.remark,
-                  imagePath: parameter.imageUrl,
+                  imagePaths: (parameter.imageUrl == null ||
+                          parameter.imageUrl!.isEmpty)
+                      ? const []
+                      : [parameter.imageUrl!],
                 ),
             };
       isLoading = false;
@@ -159,34 +162,63 @@ class AuditSheetProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setImage(int index, String imagePath) {
-    rowStates[index] = (rowStates[index] ?? const AuditRowState()).copyWith(
-      imagePath: imagePath,
+  /// Appends [imagePath] to the row's image list. Used as the optimistic
+  /// preview before a server URL comes back, and as the entrypoint for any
+  /// new photo the auditor stages on this row.
+  void addImage(int index, String imagePath) {
+    final current = rowStates[index] ?? const AuditRowState();
+    rowStates[index] = current.copyWith(
+      imagePaths: [...current.imagePaths, imagePath],
     );
     hasUnsavedChanges = true;
     notifyListeners();
   }
 
+  /// Removes the photo at [photoIndex] for the row at [index]. Local-only —
+  /// the backend has no delete endpoint, so the orphaned server-side image
+  /// stays until overwritten by a future upload. The user sees it gone, which
+  /// is what they asked for.
+  void removeImageAt(int index, int photoIndex) {
+    final current = rowStates[index];
+    if (current == null) return;
+    if (photoIndex < 0 || photoIndex >= current.imagePaths.length) return;
+    final next = [...current.imagePaths]..removeAt(photoIndex);
+    rowStates[index] = current.copyWith(imagePaths: next);
+    hasUnsavedChanges = true;
+    notifyListeners();
+  }
+
+  /// Replaces [previewPath] in the row's image list with [serverUrl]. Matched
+  /// by identity so concurrent uploads on the same row each swap their own
+  /// preview entry; if the user removed the preview while the upload was in
+  /// flight this is a no-op.
+  void _swapPreview(int index, String previewPath, String serverUrl) {
+    final current = rowStates[index];
+    if (current == null) return;
+    final pos = current.imagePaths.indexOf(previewPath);
+    if (pos < 0) return;
+    final next = [...current.imagePaths];
+    next[pos] = serverUrl;
+    rowStates[index] = current.copyWith(imagePaths: next);
+  }
+
   /// Uploads a freshly picked photo for [index] immediately (image upload is
   /// independent of the draft PATCH — the backend stores it on the parameter
-  /// row keyed by audit_sheet + param_index). Shows the local file optimistically
-  /// so the auditor sees it right away; if the server returns a loadable
-  /// (presigned) URL we swap to that, otherwise the local preview stays for
-  /// this session. Returns false (with [actionError] set) on failure.
+  /// row keyed by audit_sheet + param_index). Appends the local file
+  /// optimistically; on a loadable (presigned) URL the preview entry is
+  /// swapped to that URL in place. Returns false (with [actionError] set) on
+  /// failure.
   Future<bool> uploadImage(int index, String localPath) async {
     final sheet = currentSheet;
     if (sheet == null) return false;
-    setImage(index, localPath); // optimistic local preview
+    addImage(index, localPath);
     try {
       final url = await _service.uploadParameterImage(
         auditId: sheet.auditPlanId,
         paramIndex: index,
         filePath: localPath,
       );
-      if (url != null) {
-        rowStates[index] =
-            (rowStates[index] ?? const AuditRowState()).copyWith(imagePath: url);
-      }
+      if (url != null) _swapPreview(index, localPath, url);
       actionError = null;
       notifyListeners();
       return true;
@@ -209,7 +241,7 @@ class AuditSheetProvider extends ChangeNotifier {
   }) async {
     final sheet = currentSheet;
     if (sheet == null) return false;
-    setImage(index, previewPath);
+    addImage(index, previewPath);
     try {
       final url = await _service.uploadParameterImageBytes(
         auditId: sheet.auditPlanId,
@@ -217,10 +249,7 @@ class AuditSheetProvider extends ChangeNotifier {
         bytes: bytes,
         filename: filename,
       );
-      if (url != null) {
-        rowStates[index] =
-            (rowStates[index] ?? const AuditRowState()).copyWith(imagePath: url);
-      }
+      if (url != null) _swapPreview(index, previewPath, url);
       actionError = null;
       notifyListeners();
       return true;

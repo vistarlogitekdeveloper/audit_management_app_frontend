@@ -18,8 +18,9 @@ class AuditRowWidget extends StatefulWidget {
     required this.onResultChanged,
     required this.remarkController,
     required this.onRemarkChanged,
-    required this.imagePath,
+    required this.imagePaths,
     required this.onImagePicked,
+    required this.onImageRemoved,
     this.showValidation = false,
     this.isReadOnly = false,
   });
@@ -30,8 +31,13 @@ class AuditRowWidget extends StatefulWidget {
   final ValueChanged<String> onResultChanged;
   final TextEditingController remarkController;
   final ValueChanged<String> onRemarkChanged;
-  final String? imagePath;
+
+  /// All photos staged for this row, in upload order. Empty means none yet.
+  final List<String> imagePaths;
   final ValueChanged<ImageSourceType> onImagePicked;
+
+  /// Callback for the × badge — receives the index into [imagePaths].
+  final ValueChanged<int> onImageRemoved;
   final bool showValidation;
   final bool isReadOnly;
 
@@ -193,20 +199,20 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
                   label: 'Evidence photo',
                 ),
                 const SizedBox(height: 6),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _EvidenceControl(
-                      key: _evidenceKey,
-                      imagePath: widget.imagePath,
-                      isReadOnly: widget.isReadOnly,
-                      onTap: widget.isReadOnly ? null : _pickPhoto,
-                    ),
-                    const Spacer(),
-                    if (widget.selectedResult != null)
-                      StatusPill(status: widget.selectedResult!),
-                  ],
+                _EvidenceControl(
+                  key: _evidenceKey,
+                  imagePaths: widget.imagePaths,
+                  isReadOnly: widget.isReadOnly,
+                  onAddTap: widget.isReadOnly ? null : _pickPhoto,
+                  onRemove: widget.isReadOnly ? null : widget.onImageRemoved,
                 ),
+                if (widget.selectedResult != null) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: StatusPill(status: widget.selectedResult!),
+                  ),
+                ],
               ],
             ),
           ),
@@ -370,65 +376,69 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-/// "Add photo" affordance / evidence thumbnail. Tapping (when editable)
-/// re-opens the picker so an existing photo can be replaced.
+/// Evidence gallery + "Add photo" button. Renders every staged photo as a
+/// 60×60 thumbnail with a × badge for one-tap removal, and keeps the
+/// "Add" tile visible alongside the thumbnails so more photos can always be
+/// staged regardless of how many already exist.
 class _EvidenceControl extends StatelessWidget {
   const _EvidenceControl({
     super.key,
-    required this.imagePath,
+    required this.imagePaths,
     required this.isReadOnly,
-    required this.onTap,
+    required this.onAddTap,
+    required this.onRemove,
   });
 
-  final String? imagePath;
+  final List<String> imagePaths;
   final bool isReadOnly;
-  final VoidCallback? onTap;
+  final VoidCallback? onAddTap;
+  final ValueChanged<int>? onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final path = imagePath;
-
-    if (path == null) {
-      if (isReadOnly) {
-        return Row(
-          children: [
-            Icon(Icons.image_not_supported_outlined,
-                size: 18, color: AppColors.textMuted),
-            const SizedBox(width: 6),
-            Text('No evidence', style: AppTextStyles.body12),
-          ],
-        );
-      }
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.blueTint,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.28),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.add_a_photo_outlined,
-                  size: 16, color: AppColors.primary),
-              const SizedBox(width: 8),
-              Text(
-                'Add photo',
-                style: AppTextStyles.medium13.copyWith(
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-        ),
+    if (isReadOnly && imagePaths.isEmpty) {
+      return Row(
+        children: [
+          Icon(Icons.image_not_supported_outlined,
+              size: 18, color: AppColors.textMuted),
+          const SizedBox(width: 6),
+          Text('No evidence', style: AppTextStyles.body12),
+        ],
       );
     }
 
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (var i = 0; i < imagePaths.length; i++)
+          _EvidenceThumb(
+            path: imagePaths[i],
+            isReadOnly: isReadOnly,
+            onRemove: onRemove == null ? null : () => onRemove!(i),
+          ),
+        if (!isReadOnly) _AddPhotoTile(onTap: onAddTap),
+      ],
+    );
+  }
+}
+
+/// A single 60×60 evidence thumbnail. When editable, a small × badge floats
+/// at the top-right corner for one-tap removal.
+class _EvidenceThumb extends StatelessWidget {
+  const _EvidenceThumb({
+    required this.path,
+    required this.isReadOnly,
+    required this.onRemove,
+  });
+
+  final String path;
+  final bool isReadOnly;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
     // On web the picker hands back a blob: URL (and dart:io File doesn't
     // exist there at runtime), so Image.file would crash. Always render via
     // Image.network on web — it handles blob: and http(s) the same way.
@@ -439,31 +449,87 @@ class _EvidenceControl extends StatelessWidget {
           : Image.file(File(path), width: 60, height: 60, fit: BoxFit.cover),
     );
 
-    if (isReadOnly) return thumb;
+    if (isReadOnly || onRemove == null) return thumb;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+    // Stack lets the × badge sit half outside the thumbnail so it doesn't
+    // cover the photo content. The extra 8px on width/height makes room.
+    return SizedBox(
+      width: 68,
+      height: 68,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          thumb,
+          Positioned(left: 0, top: 8, child: thumb),
           Positioned(
             right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(3),
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  bottomRight: Radius.circular(8),
+            top: 0,
+            child: Tooltip(
+              message: 'Remove photo',
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onRemove,
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: AppColors.danger,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.surface, width: 2),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.close_rounded,
+                        size: 13, color: AppColors.white),
+                  ),
                 ),
               ),
-              child: const Icon(Icons.edit_rounded,
-                  size: 12, color: AppColors.white),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "Add" tile sized to match the thumbnails (60×60) so it sits inline with
+/// them. Stays visible no matter how many photos are already staged.
+class _AddPhotoTile extends StatelessWidget {
+  const _AddPhotoTile({required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 60,
+        height: 60,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.blueTint,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.36),
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.add_a_photo_outlined,
+                size: 18, color: AppColors.primary),
+            const SizedBox(height: 2),
+            Text(
+              'Add',
+              style: AppTextStyles.body11.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
