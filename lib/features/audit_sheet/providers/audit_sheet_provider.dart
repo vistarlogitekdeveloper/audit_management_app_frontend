@@ -43,6 +43,19 @@ class AuditSheetProvider extends ChangeNotifier {
   /// when the (singleton) provider still holds a *different* audit's sheet.
   String? _activeAuditId;
 
+  /// Photos staged by the auditor but not yet uploaded. Keyed by row index.
+  /// Picking a photo only appends here (and to the visible thumbnail list)
+  /// — the network upload is deferred until [submitSheet] flushes the queue.
+  /// That keeps the picker fast and lets the auditor edit / remove freely
+  /// without per-tap API calls.
+  final Map<int, List<_PendingPhoto>> _pendingPhotos = {};
+
+  bool get hasPendingPhotos =>
+      _pendingPhotos.values.any((list) => list.isNotEmpty);
+
+  int get pendingPhotoCount =>
+      _pendingPhotos.values.fold(0, (sum, list) => sum + list.length);
+
   String? get loadedAuditId => _loadedAuditId;
 
   /// True when the provider's loaded state corresponds to [auditId] (a real
@@ -162,9 +175,9 @@ class AuditSheetProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Appends [imagePath] to the row's image list. Used as the optimistic
-  /// preview before a server URL comes back, and as the entrypoint for any
-  /// new photo the auditor stages on this row.
+  /// Appends [imagePath] to the row's image list. Used for preview-only
+  /// entries that are NOT queued for upload (e.g. an oversized photo we
+  /// want the auditor to see and replace).
   void addImage(int index, String imagePath) {
     final current = rowStates[index] ?? const AuditRowState();
     rowStates[index] = current.copyWith(
@@ -174,16 +187,47 @@ class AuditSheetProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Stages a native-platform photo for upload on the next [submitSheet].
+  /// Adds it to the visible thumbnail list immediately and remembers the
+  /// file path to upload later.
+  void stagePhotoFromPath(int index, String filePath) {
+    addImage(index, filePath);
+    (_pendingPhotos[index] ??= []).add(_PendingPhoto(
+      previewPath: filePath,
+      filePath: filePath,
+    ));
+  }
+
+  /// Stages a web photo (bytes + filename) for upload on the next
+  /// [submitSheet]. [previewPath] is what the row uses as the thumbnail
+  /// source — typically the picker's blob: URL.
+  void stagePhotoFromBytes({
+    required int index,
+    required String previewPath,
+    required Uint8List bytes,
+    required String filename,
+  }) {
+    addImage(index, previewPath);
+    (_pendingPhotos[index] ??= []).add(_PendingPhoto(
+      previewPath: previewPath,
+      bytes: bytes,
+      filename: filename,
+    ));
+  }
+
   /// Removes the photo at [photoIndex] for the row at [index]. Local-only —
   /// the backend has no delete endpoint, so the orphaned server-side image
-  /// stays until overwritten by a future upload. The user sees it gone, which
-  /// is what they asked for.
+  /// stays until overwritten by a future upload. The user sees it gone,
+  /// which is what they asked for. Also drops the entry from the pending
+  /// upload queue if it was staged but never flushed.
   void removeImageAt(int index, int photoIndex) {
     final current = rowStates[index];
     if (current == null) return;
     if (photoIndex < 0 || photoIndex >= current.imagePaths.length) return;
+    final removedPath = current.imagePaths[photoIndex];
     final next = [...current.imagePaths]..removeAt(photoIndex);
     rowStates[index] = current.copyWith(imagePaths: next);
+    _pendingPhotos[index]?.removeWhere((p) => p.previewPath == removedPath);
     hasUnsavedChanges = true;
     notifyListeners();
   }
@@ -305,13 +349,19 @@ class AuditSheetProvider extends ChangeNotifier {
   }
 
   /// Persists the rows then submits the sheet. Returns `true` on success.
-  /// Same re-entrancy/error semantics as [saveDraft].
+  /// Same re-entrancy/error semantics as [saveDraft]. Also flushes any
+  /// photos staged via [stagePhotoFromPath] / [stagePhotoFromBytes] before
+  /// the submit goes out — that's the single place network image uploads
+  /// happen now, so the auditor can edit / remove photos freely without
+  /// any per-tap API traffic.
   Future<bool> submitSheet() async {
     if (currentSheet == null || isLoading) return false;
     isLoading = true;
     actionError = null;
     notifyListeners();
     try {
+      final photosOk = await _flushPendingPhotosLocked();
+      if (!photosOk) return false;
       await _service.updateSheet(
         auditId: currentSheet!.auditPlanId,
         data: _rowPayload(),
@@ -329,6 +379,45 @@ class AuditSheetProvider extends ChangeNotifier {
     }
   }
 
+  /// Uploads every staged photo via the existing upload endpoint, swapping
+  /// each preview entry to its returned server URL. Stops at the first
+  /// failure so the auditor can retry rather than discovering half the
+  /// photos got through. Caller is expected to already hold the
+  /// `isLoading` lock and notify listeners.
+  Future<bool> _flushPendingPhotosLocked() async {
+    final sheet = currentSheet;
+    if (sheet == null) return false;
+    for (final index in _pendingPhotos.keys.toList()) {
+      final list = _pendingPhotos[index]!;
+      while (list.isNotEmpty) {
+        final photo = list.first;
+        try {
+          String? url;
+          if (photo.bytes != null) {
+            url = await _service.uploadParameterImageBytes(
+              auditId: sheet.auditPlanId,
+              paramIndex: index,
+              bytes: photo.bytes!,
+              filename: photo.filename ?? 'photo.jpg',
+            );
+          } else if (photo.filePath != null) {
+            url = await _service.uploadParameterImage(
+              auditId: sheet.auditPlanId,
+              paramIndex: index,
+              filePath: photo.filePath!,
+            );
+          }
+          if (url != null) _swapPreview(index, photo.previewPath, url);
+          list.removeAt(0);
+        } catch (error) {
+          actionError = _readableError(error);
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   List<Map<String, dynamic>> _rowPayload() {
     final parameters = currentSheet?.parameters ?? [];
     return parameters
@@ -338,4 +427,22 @@ class AuditSheetProvider extends ChangeNotifier {
         )
         .toList();
   }
+}
+
+/// One photo staged in the provider, waiting for [AuditSheetProvider.submitSheet]
+/// to flush it. Either [filePath] (native) or [bytes] + [filename] (web) is
+/// populated. [previewPath] is the entry that appears in the row's
+/// `imagePaths` list — the flush swaps it to the server URL on success.
+class _PendingPhoto {
+  const _PendingPhoto({
+    required this.previewPath,
+    this.filePath,
+    this.bytes,
+    this.filename,
+  });
+
+  final String previewPath;
+  final String? filePath;
+  final Uint8List? bytes;
+  final String? filename;
 }

@@ -239,6 +239,14 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                 _scheduleAutoSave();
                               },
                               onImagePicked: (source) async {
+                                // Picking a photo is now local-only: it's
+                                // staged in the provider and uploaded as a
+                                // batch when the auditor taps Submit. That
+                                // keeps the picker responsive, lets the
+                                // auditor add/remove photos freely with no
+                                // per-tap network round trips, and makes
+                                // iterating on the photo UI possible
+                                // without a working backend.
                                 final picker = ImagePicker();
                                 final file = await picker.pickImage(
                                   source: source == ImageSourceType.camera
@@ -255,43 +263,29 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                 final provider =
                                     ref.read(auditSheetProvider);
 
-                                // Web path: dart:io File / path_provider /
-                                // MultipartFile.fromFile aren't available, so
-                                // the native compress + file-path upload
-                                // pipeline throws MissingPluginException and
-                                // the API was never being hit. Read bytes
-                                // straight from the picker and upload those.
                                 if (kIsWeb) {
                                   final bytes = await file.readAsBytes();
                                   if (bytes.length >
                                       AppConstants.maxImageSizeBytes) {
+                                    // Show what they picked but keep it out
+                                    // of the upload queue — the × badge lets
+                                    // them clear it and try again.
                                     provider.addImage(
                                         parameter.index, file.path);
                                     if (!context.mounted) return;
                                     AppHelpers.showErrorSnackbar(
                                       context,
                                       'Image is too large (over 500 KB). '
-                                      'Please pick a smaller photo.',
+                                      'Please remove and pick a smaller photo.',
                                     );
                                     return;
                                   }
-                                  final ok = await provider.uploadImageBytes(
+                                  provider.stagePhotoFromBytes(
                                     index: parameter.index,
+                                    previewPath: file.path,
                                     bytes: bytes,
                                     filename: file.name,
-                                    previewPath: file.path,
                                   );
-                                  if (!context.mounted) return;
-                                  if (ok) {
-                                    AppHelpers.showSuccessSnackbar(
-                                        context, 'Photo uploaded.');
-                                  } else {
-                                    AppHelpers.showErrorSnackbar(
-                                      context,
-                                      provider.actionError ??
-                                          'Could not upload photo. Please try again.',
-                                    );
-                                  }
                                   return;
                                 }
 
@@ -300,29 +294,18 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                   compressed = await ImageService()
                                       .compressToMax500Kb(file.path);
                                 } on OversizedImageException catch (e) {
-                                  // Can't get under the backend's 500 KB cap —
-                                  // don't upload. Keep the picked photo as a
-                                  // local preview so the auditor can see what
-                                  // they chose and pick a smaller one.
+                                  // Can't get under the backend's 500 KB
+                                  // cap — keep as preview-only so the
+                                  // auditor can see what they chose, but
+                                  // don't queue it for upload.
                                   provider.addImage(parameter.index, file.path);
                                   if (!context.mounted) return;
                                   AppHelpers.showErrorSnackbar(
                                       context, e.message);
                                   return;
                                 }
-                                final ok = await provider.uploadImage(
+                                provider.stagePhotoFromPath(
                                     parameter.index, compressed);
-                                if (!context.mounted) return;
-                                if (ok) {
-                                  AppHelpers.showSuccessSnackbar(
-                                      context, 'Photo uploaded.');
-                                } else {
-                                  AppHelpers.showErrorSnackbar(
-                                    context,
-                                    provider.actionError ??
-                                        'Could not upload photo. Please try again.',
-                                  );
-                                }
                               },
                             );
                           }).toList(),
