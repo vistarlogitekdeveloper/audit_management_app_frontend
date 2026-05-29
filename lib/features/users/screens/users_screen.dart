@@ -243,41 +243,78 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
       AppConstants.normalizeRole(role).isEmpty ? role : AppConstants.normalizeRole(role);
 
   Future<void> _showUserSheet(BuildContext context, {UserModel? user}) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 18,
-          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
+    // On a wide viewport (laptop), the bottom sheet slides up from the
+    // screen edge — far from whichever row's Edit button the user clicked.
+    // Show a centered Dialog instead so the form appears where the user is
+    // looking. On phones the bottom sheet is still the natural pattern.
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
+
+    Future<void> handleSubmit(
+      BuildContext popupContext,
+      Map<String, dynamic> payload,
+    ) async {
+      try {
+        if (user == null) {
+          await ref.read(userProvider).createUser(payload);
+          if (!popupContext.mounted) return;
+          AppHelpers.showSuccessSnackbar(
+              popupContext, 'User created. Welcome email sent.');
+        } else {
+          await ref.read(userProvider).updateUser(user.id, payload);
+          if (!popupContext.mounted) return;
+          AppHelpers.showSuccessSnackbar(popupContext, 'User updated.');
+        }
+        if (popupContext.mounted) Navigator.of(popupContext).pop();
+      } catch (e) {
+        if (!popupContext.mounted) return;
+        AppHelpers.showErrorSnackbar(
+            popupContext, AppHelpers.readableError(e));
+      }
+    }
+
+    if (isCompact) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.background,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
-        child: _UserForm(
-          existing: user,
-          onSubmit: (payload) async {
-            try {
-              if (user == null) {
-                await ref.read(userProvider).createUser(payload);
-                if (!sheetContext.mounted) return;
-                AppHelpers.showSuccessSnackbar(
-                    sheetContext, 'User created. Welcome email sent.');
-              } else {
-                await ref.read(userProvider).updateUser(user.id, payload);
-                if (!sheetContext.mounted) return;
-                AppHelpers.showSuccessSnackbar(sheetContext, 'User updated.');
-              }
-              if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-            } catch (e) {
-              if (!sheetContext.mounted) return;
-              AppHelpers.showErrorSnackbar(
-                  sheetContext, AppHelpers.readableError(e));
-            }
-          },
+        builder: (sheetContext) => Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 18,
+            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
+          ),
+          child: _UserForm(
+            existing: user,
+            onSubmit: (payload) => handleSubmit(sheetContext, payload),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: AppColors.background,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.line),
+        ),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480, maxHeight: 640),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+            child: _UserForm(
+              existing: user,
+              onSubmit: (payload) => handleSubmit(dialogContext, payload),
+            ),
+          ),
         ),
       ),
     );
