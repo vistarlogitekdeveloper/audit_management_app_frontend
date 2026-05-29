@@ -323,11 +323,12 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AppDialog(
+        compact: true,
         icon: Icons.send_rounded,
         iconColor: AppColors.primary,
         title: 'Audit Plan Released!',
         message:
-            'The audit plan has been released successfully. Notification emails have been sent to the auditor, project incharge, and cluster manager.',
+            'Released successfully. Notifications sent to the auditor, project incharge, and cluster manager.',
         actions: Row(
           children: [
             Expanded(
@@ -340,12 +341,12 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
                 ),
                 child: const Text('Create Another'),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: FilledButton(
                 onPressed: () {
@@ -357,7 +358,7 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
                 ),
                 child: const Text('View Calendar'),
               ),
