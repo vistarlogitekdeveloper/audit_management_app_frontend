@@ -8,6 +8,7 @@ import '../core/theme/app_text_styles.dart';
 import '../core/theme/theme_controller.dart';
 import '../core/utils/helpers.dart';
 import '../core/widgets/brand.dart';
+import '../core/widgets/loading_overlay.dart';
 import '../core/widgets/offline_banner.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../features/dashboard/providers/dashboard_provider.dart';
@@ -82,7 +83,15 @@ class MainScaffold extends ConsumerWidget {
     final hasMobileNavMatch = mobileNavItems
         .any((item) => activeNavRoute.startsWith(item.route));
 
-    return Scaffold(
+    // AuthProvider toggles `isLoading` around `logout()` (the only place
+    // inside an authenticated session that flips it — login/forgot run on
+    // their own screens). Wrapping the Scaffold in LoadingOverlay gives
+    // the user a "Logging out…" scrim during the network call so the tap
+    // doesn't feel like nothing happened.
+    return LoadingOverlay(
+      isLoading: auth.isLoading,
+      message: 'Logging out…',
+      child: Scaffold(
       backgroundColor: AppColors.bgDeep,
       drawer: isMobile
           ? _MobileDrawer(items: items, location: location)
@@ -144,6 +153,7 @@ class MainScaffold extends ConsumerWidget {
               hasActiveMatch: hasMobileNavMatch,
             )
           : null,
+      ),
     );
   }
 
