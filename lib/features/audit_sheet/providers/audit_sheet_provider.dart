@@ -197,6 +197,40 @@ class AuditSheetProvider extends ChangeNotifier {
     }
   }
 
+  /// Bytes variant of [uploadImage] for Flutter web — `dart:io` File-based
+  /// uploads aren't available there. [previewPath] is used as the optimistic
+  /// thumbnail (typically the picker's blob URL); on success it's swapped to
+  /// the server-side URL the same way as the native path.
+  Future<bool> uploadImageBytes({
+    required int index,
+    required Uint8List bytes,
+    required String filename,
+    required String previewPath,
+  }) async {
+    final sheet = currentSheet;
+    if (sheet == null) return false;
+    setImage(index, previewPath);
+    try {
+      final url = await _service.uploadParameterImageBytes(
+        auditId: sheet.auditPlanId,
+        paramIndex: index,
+        bytes: bytes,
+        filename: filename,
+      );
+      if (url != null) {
+        rowStates[index] =
+            (rowStates[index] ?? const AuditRowState()).copyWith(imagePath: url);
+      }
+      actionError = null;
+      notifyListeners();
+      return true;
+    } catch (error) {
+      actionError = _readableError(error);
+      notifyListeners();
+      return false;
+    }
+  }
+
   bool isRowComplete(int index) {
     final row = rowStates[index];
     return row != null &&

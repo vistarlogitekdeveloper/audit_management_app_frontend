@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:audit_management_app_frontend/features/audit_sheet/models/audit_parameter_model.dart';
 import 'package:audit_management_app_frontend/features/audit_sheet/models/audit_sheet_model.dart';
@@ -38,6 +39,18 @@ class _FakeAuditSheetService implements AuditSheetService {
     required String auditId,
     required int paramIndex,
     required String filePath,
+  }) async {
+    uploadCalls++;
+    if (uploadThrows) throw Exception('upload failed');
+    return uploadReturnUrl;
+  }
+
+  @override
+  Future<String?> uploadParameterImageBytes({
+    required String auditId,
+    required int paramIndex,
+    required Uint8List bytes,
+    required String filename,
   }) async {
     uploadCalls++;
     if (uploadThrows) throw Exception('upload failed');

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -428,9 +429,12 @@ class _EvidenceControl extends StatelessWidget {
       );
     }
 
+    // On web the picker hands back a blob: URL (and dart:io File doesn't
+    // exist there at runtime), so Image.file would crash. Always render via
+    // Image.network on web — it handles blob: and http(s) the same way.
     final thumb = ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: path.startsWith('http')
+      child: (kIsWeb || path.startsWith('http'))
           ? Image.network(path, width: 60, height: 60, fit: BoxFit.cover)
           : Image.file(File(path), width: 60, height: 60, fit: BoxFit.cover),
     );

@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
@@ -234,14 +236,60 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                               onImagePicked: (source) async {
                                 final picker = ImagePicker();
                                 final file = await picker.pickImage(
-                                  source:
-                                      source == ImageSourceType.camera
-                                          ? ImageSource.camera
-                                          : ImageSource.gallery,
+                                  source: source == ImageSourceType.camera
+                                      ? ImageSource.camera
+                                      : ImageSource.gallery,
+                                  // Light pre-compress on web (where our
+                                  // native-only ImageService can't run) to
+                                  // give the file a better chance under the
+                                  // backend's 500 KB cap.
+                                  imageQuality: kIsWeb ? 75 : null,
+                                  maxWidth: kIsWeb ? 1600 : null,
                                 );
                                 if (file == null) return;
                                 final provider =
                                     ref.read(auditSheetProvider);
+
+                                // Web path: dart:io File / path_provider /
+                                // MultipartFile.fromFile aren't available, so
+                                // the native compress + file-path upload
+                                // pipeline throws MissingPluginException and
+                                // the API was never being hit. Read bytes
+                                // straight from the picker and upload those.
+                                if (kIsWeb) {
+                                  final bytes = await file.readAsBytes();
+                                  if (bytes.length >
+                                      AppConstants.maxImageSizeBytes) {
+                                    provider.setImage(
+                                        parameter.index, file.path);
+                                    if (!context.mounted) return;
+                                    AppHelpers.showErrorSnackbar(
+                                      context,
+                                      'Image is too large (over 500 KB). '
+                                      'Please pick a smaller photo.',
+                                    );
+                                    return;
+                                  }
+                                  final ok = await provider.uploadImageBytes(
+                                    index: parameter.index,
+                                    bytes: bytes,
+                                    filename: file.name,
+                                    previewPath: file.path,
+                                  );
+                                  if (!context.mounted) return;
+                                  if (ok) {
+                                    AppHelpers.showSuccessSnackbar(
+                                        context, 'Photo uploaded.');
+                                  } else {
+                                    AppHelpers.showErrorSnackbar(
+                                      context,
+                                      provider.actionError ??
+                                          'Could not upload photo. Please try again.',
+                                    );
+                                  }
+                                  return;
+                                }
+
                                 String compressed;
                                 try {
                                   compressed = await ImageService()

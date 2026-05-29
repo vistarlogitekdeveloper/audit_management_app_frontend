@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import '../../../core/constants/api_constants.dart';
@@ -71,6 +73,37 @@ class AuditSheetService {
     final formData = FormData.fromMap({
       'param_index': paramIndex,
       'image': await MultipartFile.fromFile(filePath),
+    });
+    final response = await _apiService.upload(
+      ApiConstants.uploadAuditSheetImage(auditId),
+      formData: formData,
+    );
+    final data = _apiService.extractObject(response);
+    for (final key in const [
+      'presigned_url',
+      'signed_url',
+      'url',
+      'image_url',
+    ]) {
+      final value = data[key]?.toString();
+      if (value != null && value.startsWith('http')) return value;
+    }
+    return null;
+  }
+
+  /// Bytes variant of [uploadParameterImage] for Flutter web, where
+  /// `dart:io` File and `path_provider` aren't available so
+  /// `MultipartFile.fromFile` can't be used. Otherwise identical — same
+  /// endpoint, same response handling.
+  Future<String?> uploadParameterImageBytes({
+    required String auditId,
+    required int paramIndex,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final formData = FormData.fromMap({
+      'param_index': paramIndex,
+      'image': MultipartFile.fromBytes(bytes, filename: filename),
     });
     final response = await _apiService.upload(
       ApiConstants.uploadAuditSheetImage(auditId),
