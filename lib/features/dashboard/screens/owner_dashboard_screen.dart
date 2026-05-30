@@ -7,6 +7,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/loading_overlay.dart';
+import '../../../core/widgets/page_chrome.dart';
 import '../providers/dashboard_provider.dart';
 
 class OwnerDashboardScreen extends ConsumerWidget {
@@ -96,9 +97,19 @@ class OwnerDashboardScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 18),
-            compact
-                ? _ReviewCards(reviews: reviews)
-                : _ReviewTable(reviews: reviews),
+            if (reviews.isEmpty)
+              const _Panel(
+                title: 'Audits awaiting acknowledgement',
+                icon: Icons.assignment_turned_in_outlined,
+                child: EmptyPanel(
+                  message:
+                      'No audits awaiting acknowledgement right now.',
+                ),
+              )
+            else
+              compact
+                  ? _ReviewCards(reviews: reviews)
+                  : _ReviewTable(reviews: reviews),
             const SizedBox(height: 18),
             _ActionPlanPanel(actions: actions),
           ],

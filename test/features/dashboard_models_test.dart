@@ -114,20 +114,22 @@ void main() {
             'AuditSheet': {'status': 'acknowledged'},
           },
           {
-            'id': 'a-closed',
+            // No AuditSheet block at all — must NOT be dropped (treated
+            // as "status unknown, trust the backend").
+            'id': 'a-no-sheet',
             'project': {'name': 'P3'},
             'auditor': 'Bob',
-            'AuditSheet': {'status': 'closed'},
           },
         ],
         'actionPlans': [],
       };
       final model = OwnerDashboardModel.fromJson(json);
-      expect(model.auditsAwaiting.map((a) => a.id), ['a-pending']);
+      expect(model.auditsAwaiting.map((a) => a.id),
+          ['a-pending', 'a-no-sheet']);
       // Headline counter never grows past the backend's number, but it
       // shrinks to match the filtered list so the tile can't disagree
       // with what's rendered below it.
-      expect(model.awaitingReview, 1);
+      expect(model.awaitingReview, 2);
     });
 
     test('drops submitted / closed action plans from the Open list', () {

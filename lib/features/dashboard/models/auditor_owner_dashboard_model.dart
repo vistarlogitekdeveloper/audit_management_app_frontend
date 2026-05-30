@@ -158,7 +158,13 @@ class OwnerDashboardModel {
   /// panel — even if the backend's `awaitingAcknowledgement` list still
   /// carries it. Filtering here keeps the dashboards correct without
   /// waiting on a backend fix.
-  static const _ackedSheetStatuses = {'acknowledged', 'closed', 'completed'};
+  ///
+  /// Deliberately narrow: only `acknowledged` is filtered. An earlier
+  /// version also dropped `closed` / `completed`, but those statuses
+  /// overlap with audit-plan lifecycle values the backend sometimes
+  /// surfaces on legitimately-awaiting rows — filtering them blanked the
+  /// table.
+  static const _ackedSheetStatuses = {'acknowledged'};
 
   /// Action-plan statuses that mean the plan is no longer awaiting the
   /// owner's attention — submitted moves it to the auditor's review,
