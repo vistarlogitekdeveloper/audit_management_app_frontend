@@ -80,9 +80,19 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
     final mode = _modeForRole(auth.currentUser?.role ?? '');
     final isAuditor = mode == ActionItemMode.review;
     final isEditor = mode == ActionItemMode.edit;
+    // Plan-level `status == 'closed'` (or `closedAt` set) is the auditor's
+    // explicit close. But the owner is also "done" the moment they've marked
+    // every item Closed — at that point they're waiting on the auditor and
+    // shouldn't keep editing fields they've already finished. Treat that
+    // state as read-only for the editor too; auditors still get review mode
+    // so they can approve / close.
+    final allItemsOwnerClosed = provider.items.isNotEmpty &&
+        provider.items.every(
+            (item) => item.status.toLowerCase() == 'closed');
     final planClosed = plan?.isClosed ?? false;
+    final ownerDone = isEditor && allItemsOwnerClosed;
     final effectiveMode =
-        planClosed ? ActionItemMode.readOnly : mode;
+        (planClosed || ownerDone) ? ActionItemMode.readOnly : mode;
 
     final auditDate =
         ref.watch(auditSheetProvider).currentSheet?.auditDate ?? DateTime.now();
@@ -158,7 +168,10 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
                 busy: provider.isReviewing,
                 onClose: _closePlan,
               )
-            else if (isEditor)
+            // Owner who has marked every item Closed has nothing left to
+            // submit — hide the action bar in that interim state so the
+            // form reads as locked end-to-end while the auditor reviews.
+            else if (isEditor && !ownerDone)
               AppPanel(
                 child: Row(
                   children: [
@@ -180,7 +193,9 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
                     ),
                   ],
                 ),
-              ),
+              )
+            else if (isEditor && ownerDone)
+              const _OwnerDoneBanner(),
           ],
         ],
       ),
@@ -428,6 +443,32 @@ class _ClosedBanner extends StatelessWidget {
             const SizedBox(height: 8),
             Text(plan.closeRemark, style: AppTextStyles.body13),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Footer shown to the owner once every item is marked Closed but the
+/// auditor hasn't formally closed the plan yet. Mirrors the
+/// [_ClosedBanner] visual language so the owner reads it as "done"
+/// rather than "still expected to act".
+class _OwnerDoneBanner extends StatelessWidget {
+  const _OwnerDoneBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPanel(
+      child: Row(
+        children: [
+          Icon(Icons.hourglass_top_rounded, color: AppColors.success),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'All items marked Closed — waiting for the auditor to review and close the plan.',
+              style: AppTextStyles.medium14,
+            ),
+          ),
         ],
       ),
     );

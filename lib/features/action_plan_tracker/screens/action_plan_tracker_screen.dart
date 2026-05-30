@@ -287,10 +287,18 @@ class _PlanCard extends StatelessWidget {
                     icon: Icon(
                       showReviewCounts
                           ? Icons.rate_review_outlined
-                          : Icons.edit_outlined,
+                          : plan.isClosed
+                              ? Icons.visibility_outlined
+                              : Icons.edit_outlined,
                       size: 16,
                     ),
-                    label: Text(showReviewCounts ? 'Review' : 'Edit'),
+                    label: Text(
+                      showReviewCounts
+                          ? 'Review'
+                          : plan.isClosed
+                              ? 'View'
+                              : 'Edit',
+                    ),
                   ),
               ],
             ),
