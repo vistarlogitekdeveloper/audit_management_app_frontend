@@ -95,5 +95,75 @@ void main() {
       expect(review.project, 'Plain Project');
       expect(review.auditor, 'Alice');
     });
+
+    test('drops already-acknowledged audits from auditsAwaiting even when the '
+        'backend still returns them in the awaitingAcknowledgement list', () {
+      final json = {
+        'stats': {'awaitingReview': 3},
+        'awaitingAcknowledgement': [
+          {
+            'id': 'a-pending',
+            'project': {'name': 'P1'},
+            'auditor': 'Bob',
+            'AuditSheet': {'status': 'submitted'},
+          },
+          {
+            'id': 'a-acked',
+            'project': {'name': 'P2'},
+            'auditor': 'Bob',
+            'AuditSheet': {'status': 'acknowledged'},
+          },
+          {
+            'id': 'a-closed',
+            'project': {'name': 'P3'},
+            'auditor': 'Bob',
+            'AuditSheet': {'status': 'closed'},
+          },
+        ],
+        'actionPlans': [],
+      };
+      final model = OwnerDashboardModel.fromJson(json);
+      expect(model.auditsAwaiting.map((a) => a.id), ['a-pending']);
+      // Headline counter never grows past the backend's number, but it
+      // shrinks to match the filtered list so the tile can't disagree
+      // with what's rendered below it.
+      expect(model.awaitingReview, 1);
+    });
+
+    test('drops submitted / closed action plans from the Open list', () {
+      final json = {
+        'stats': {'actionPlanDue': 4},
+        'awaitingAcknowledgement': [],
+        'actionPlans': [
+          {
+            'id': 'p-pending',
+            'project': 'P1',
+            'failPoints': 2,
+            'dueDate': '2026-06-01',
+            'daysRemaining': 3,
+            'status': 'pending',
+          },
+          {
+            'id': 'p-submitted',
+            'project': 'P2',
+            'failPoints': 1,
+            'dueDate': '2026-06-01',
+            'daysRemaining': 1,
+            'status': 'submitted',
+          },
+          {
+            'id': 'p-closed',
+            'project': 'P3',
+            'failPoints': 0,
+            'dueDate': '2026-06-01',
+            'daysRemaining': -1,
+            'status': 'closed',
+          },
+        ],
+      };
+      final model = OwnerDashboardModel.fromJson(json);
+      expect(model.actionPlans.map((p) => p.id), ['p-pending']);
+      expect(model.actionPlanDue, 1);
+    });
   });
 }

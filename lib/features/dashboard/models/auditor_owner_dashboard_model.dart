@@ -153,19 +153,58 @@ class OwnerDashboardModel {
   final List<OwnerAuditReview> auditsAwaiting;
   final List<OwnerActionPlan> actionPlans;
 
+  /// Audit-sheet statuses that mean the owner has already acknowledged and
+  /// so the row should never appear in the "Audits awaiting acknowledgement"
+  /// panel — even if the backend's `awaitingAcknowledgement` list still
+  /// carries it. Filtering here keeps the dashboards correct without
+  /// waiting on a backend fix.
+  static const _ackedSheetStatuses = {'acknowledged', 'closed', 'completed'};
+
+  /// Action-plan statuses that mean the plan is no longer awaiting the
+  /// owner's attention — submitted moves it to the auditor's review,
+  /// closed means it's done. "Open action plans" stays focused on plans
+  /// the owner can still act on.
+  static const _doneActionPlanStatuses = {
+    'submitted',
+    'in_review',
+    'under_review',
+    'closed',
+    'completed',
+  };
+
   factory OwnerDashboardModel.fromJson(Map<String, dynamic> json) {
     final stats = AppHelpers.asStringMap(json['stats']) ?? const {};
+    final rawAudits = AppHelpers.mapList(
+      json['awaitingAcknowledgement'] ?? json['auditsAwaiting'],
+      OwnerAuditReview.fromJson,
+    );
+    final filteredAudits = rawAudits
+        .where((a) => !_ackedSheetStatuses
+            .contains((a.auditSheetStatus).toLowerCase()))
+        .toList();
+    final rawActionPlans =
+        AppHelpers.mapList(json['actionPlans'], OwnerActionPlan.fromJson);
+    final filteredActionPlans = rawActionPlans
+        .where((p) =>
+            !_doneActionPlanStatuses.contains((p.status).toLowerCase()))
+        .toList();
+    final backendAwaitingReview = AppHelpers.parseInt(stats['awaitingReview']);
+    final backendActionPlanDue = AppHelpers.parseInt(stats['actionPlanDue']);
     return OwnerDashboardModel(
-      awaitingReview: AppHelpers.parseInt(stats['awaitingReview']),
+      // Reconcile the headline counters with the filtered lists so the
+      // "Awaiting review" / "Action plans due" tiles can't disagree with
+      // what's rendered below them. We never grow past what the backend
+      // reported (rawAudits/rawActionPlans length is the ceiling).
+      awaitingReview: filteredAudits.length < backendAwaitingReview
+          ? filteredAudits.length
+          : backendAwaitingReview,
       acknowledged: AppHelpers.parseInt(stats['acknowledged']),
-      actionPlanDue: AppHelpers.parseInt(stats['actionPlanDue']),
+      actionPlanDue: filteredActionPlans.length < backendActionPlanDue
+          ? filteredActionPlans.length
+          : backendActionPlanDue,
       lastPassPercent: AppHelpers.parseDouble(stats['lastPassPercent']),
-      auditsAwaiting: AppHelpers.mapList(
-        json['awaitingAcknowledgement'] ?? json['auditsAwaiting'],
-        OwnerAuditReview.fromJson,
-      ),
-      actionPlans:
-          AppHelpers.mapList(json['actionPlans'], OwnerActionPlan.fromJson),
+      auditsAwaiting: filteredAudits,
+      actionPlans: filteredActionPlans,
     );
   }
 
@@ -188,6 +227,7 @@ class OwnerAuditReview {
     required this.date,
     required this.passPercent,
     required this.failPoints,
+    this.auditSheetStatus = '',
   });
 
   final String id;
@@ -196,6 +236,12 @@ class OwnerAuditReview {
   final DateTime date;
   final double passPercent;
   final int failPoints;
+
+  /// Lower-cased status of the underlying AuditSheet — `submitted` /
+  /// `acknowledged` / `closed` / etc. Carried here so the dashboard model
+  /// can drop already-acknowledged rows even if the backend still includes
+  /// them in `awaitingAcknowledgement`.
+  final String auditSheetStatus;
 
   factory OwnerAuditReview.fromJson(Map<String, dynamic> json) {
     // Backend `awaitingAcknowledgement` returns full AuditPlan rows with the
@@ -219,6 +265,11 @@ class OwnerAuditReview {
     final failPoints = sheetMap != null && sheetMap['total_fail'] != null
         ? AppHelpers.parseInt(sheetMap['total_fail'])
         : AppHelpers.parseInt(json['failPoints']);
+    final sheetStatus = (sheetMap?['status']?.toString() ??
+            json['auditSheetStatus']?.toString() ??
+            json['sheet_status']?.toString() ??
+            '')
+        .toLowerCase();
 
     return OwnerAuditReview(
       id: json['id']?.toString() ?? '',
@@ -227,6 +278,7 @@ class OwnerAuditReview {
       date: auditDate,
       passPercent: passPercent,
       failPoints: failPoints,
+      auditSheetStatus: sheetStatus,
     );
   }
 
@@ -237,6 +289,7 @@ class OwnerAuditReview {
         'date': date.toIso8601String(),
         'passPercent': passPercent,
         'failPoints': failPoints,
+        'auditSheetStatus': auditSheetStatus,
       };
 }
 
@@ -247,6 +300,7 @@ class OwnerActionPlan {
     required this.failPoints,
     required this.dueDate,
     required this.daysRemaining,
+    this.status = '',
   });
 
   final String id;
@@ -254,6 +308,12 @@ class OwnerActionPlan {
   final int failPoints;
   final DateTime dueDate;
   final int daysRemaining;
+
+  /// Lower-cased status of the plan — `pending` / `submitted` / `closed`
+  /// etc. Carried here so the dashboard model can drop plans that the
+  /// owner has already submitted (and are now in the auditor's review
+  /// queue) from the "Open action plans" panel.
+  final String status;
 
   factory OwnerActionPlan.fromJson(Map<String, dynamic> json) {
     return OwnerActionPlan(
@@ -263,6 +323,7 @@ class OwnerActionPlan {
       dueDate: DateTime.tryParse(json['dueDate']?.toString() ?? '') ??
           DateTime.now(),
       daysRemaining: AppHelpers.parseInt(json['daysRemaining']),
+      status: (json['status']?.toString() ?? '').toLowerCase(),
     );
   }
 
@@ -272,5 +333,6 @@ class OwnerActionPlan {
         'failPoints': failPoints,
         'dueDate': dueDate.toIso8601String(),
         'daysRemaining': daysRemaining,
+        'status': status,
       };
 }
