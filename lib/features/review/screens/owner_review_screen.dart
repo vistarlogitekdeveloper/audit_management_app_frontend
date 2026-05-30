@@ -9,7 +9,9 @@ import '../../../core/utils/helpers.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../../core/widgets/status_pill.dart';
+import '../../action_plan_tracker/providers/action_plan_tracker_provider.dart';
 import '../../audit_sheet/providers/audit_sheet_provider.dart';
+import '../../dashboard/providers/dashboard_provider.dart';
 import '../providers/review_provider.dart';
 
 class OwnerReviewScreen extends ConsumerStatefulWidget {
@@ -188,6 +190,21 @@ class _OwnerReviewScreenState extends ConsumerState<OwnerReviewScreen> {
                       final result = await ref
                           .read(reviewProvider)
                           .acknowledge(widget.auditId);
+                      // Server is authoritative now: the audit just moved
+                      // out of `awaitingAcknowledgement`. Without this,
+                      // FutureProvider keeps its old snapshot and the
+                      // dashboards keep showing the audit in the "to be
+                      // acknowledged" list. Invalidating every role's
+                      // dashboard covers the same-session case for both
+                      // owner and cluster manager; cross-session, the
+                      // next dashboard fetch picks up the new state.
+                      // Also refresh the action-plan tracker because an
+                      // ack with fail points auto-creates a plan.
+                      ref.invalidate(ownerDashboardProvider);
+                      ref.invalidate(clusterDashboardProvider);
+                      ref.invalidate(auditorDashboardProvider);
+                      ref.invalidate(adminDashboardProvider);
+                      ref.read(actionPlanTrackerProvider).fetch();
                       if (!context.mounted) return;
                       AppHelpers.showSuccessSnackbar(
                         context,
