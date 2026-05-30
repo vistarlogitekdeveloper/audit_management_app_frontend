@@ -45,18 +45,25 @@ class OwnerDashboardScreen extends ConsumerWidget {
         final width = MediaQuery.sizeOf(context).width;
         final compact = width < 760;
 
-        final nextReviewId = data.auditsAwaiting.isNotEmpty
-            ? data.auditsAwaiting.first.id
-            : null;
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _OwnerHero(
-              onReview: nextReviewId == null
-                  ? null
-                  : () => context.go('/owner/review/$nextReviewId'),
-            ),
+            // Awaiting list is the dashboard's entrypoint — the owner's job
+            // is to acknowledge submitted audits, so put that work right
+            // at the top. Metric cards summarise; the action queue follows.
+            if (reviews.isEmpty)
+              const _Panel(
+                title: 'Audits awaiting acknowledgement',
+                icon: Icons.assignment_turned_in_outlined,
+                child: EmptyPanel(
+                  message:
+                      'No audits awaiting acknowledgement right now.',
+                ),
+              )
+            else
+              compact
+                  ? _ReviewCards(reviews: reviews)
+                  : _ReviewTable(reviews: reviews),
             const SizedBox(height: 18),
             GridView.count(
               crossAxisCount: width >= 1000 ? 4 : 2,
@@ -97,85 +104,10 @@ class OwnerDashboardScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 18),
-            if (reviews.isEmpty)
-              const _Panel(
-                title: 'Audits awaiting acknowledgement',
-                icon: Icons.assignment_turned_in_outlined,
-                child: EmptyPanel(
-                  message:
-                      'No audits awaiting acknowledgement right now.',
-                ),
-              )
-            else
-              compact
-                  ? _ReviewCards(reviews: reviews)
-                  : _ReviewTable(reviews: reviews),
-            const SizedBox(height: 18),
             _ActionPlanPanel(actions: actions),
           ],
         );
       },
-    );
-  }
-}
-
-class _OwnerHero extends StatelessWidget {
-  const _OwnerHero({required this.onReview});
-
-  final VoidCallback? onReview;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Wrap(
-        spacing: 20,
-        runSpacing: 16,
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Review and action hub',
-                  style: AppTextStyles.headline22.copyWith(
-                    color: AppColors.white,
-                    fontSize: 28,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Acknowledge audit outcomes and keep corrective work moving before deadlines slip.',
-                  style: AppTextStyles.body14.copyWith(
-                    color: AppColors.white.withValues(alpha: 0.82),
-                    height: 1.45,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          FilledButton.icon(
-            onPressed: onReview,
-            icon: const Icon(Icons.rate_review_outlined, size: 18),
-            label: const Text('Review next audit'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.white,
-              foregroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -281,6 +213,8 @@ class _ReviewTable extends StatelessWidget {
                   AppButton(
                     label: 'Review',
                     icon: Icons.rate_review_outlined,
+                    variant: AppButtonVariant.ghost,
+                    size: AppButtonSize.small,
                     onPressed: () => context.go('/owner/review/${row.id}'),
                   ),
                 ),
@@ -327,6 +261,7 @@ class _ReviewCards extends StatelessWidget {
                 AppButton(
                   label: 'Review',
                   icon: Icons.rate_review_outlined,
+                  variant: AppButtonVariant.ghost,
                   isFullWidth: true,
                   onPressed: () => context.go('/owner/review/${row.id}'),
                 ),
