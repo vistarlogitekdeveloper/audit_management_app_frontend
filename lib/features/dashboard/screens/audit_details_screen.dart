@@ -129,6 +129,7 @@ class _AuditDetailsBody extends StatelessWidget {
                   icon: hasStarted
                       ? Icons.play_circle_outlined
                       : Icons.play_arrow_rounded,
+                  variant: AppButtonVariant.ghost,
                   onPressed: () => context.go('/auditor/audit/${audit.id}'),
                 ),
               if (isSubmitted && !isAcknowledged)
@@ -142,6 +143,7 @@ class _AuditDetailsBody extends StatelessWidget {
                 AppButton(
                   label: 'View Report',
                   icon: Icons.description_outlined,
+                  variant: AppButtonVariant.ghost,
                   onPressed: () => context.go('/report/${audit.id}'),
                 ),
               AppButton(

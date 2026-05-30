@@ -456,6 +456,10 @@ class _ActionButton extends StatelessWidget {
     return AppButton(
       label: hasStarted ? 'Continue Audit' : 'Start Audit',
       icon: hasStarted ? Icons.play_circle_outlined : Icons.play_arrow_rounded,
+      // Per-row table action — match the other ghost buttons in the same
+      // column (View Report / Edit Audit / View Details) so the table reads
+      // as a calm grid instead of a stripe of gradient banners.
+      variant: AppButtonVariant.ghost,
       isFullWidth: fullWidth,
       onPressed: () => context.go('/auditor/audit/${audit.id}'),
     );

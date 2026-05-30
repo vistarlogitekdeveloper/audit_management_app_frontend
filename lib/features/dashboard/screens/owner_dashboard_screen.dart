@@ -369,6 +369,7 @@ class _ActionPlanPanel extends StatelessWidget {
                 AppButton(
                   label: 'Create Plan',
                   icon: Icons.add_task_rounded,
+                  variant: AppButtonVariant.ghost,
                   onPressed: () => context.go('/owner/action-plan/${item.id}'),
                 ),
               ],
