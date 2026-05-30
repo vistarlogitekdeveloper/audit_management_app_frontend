@@ -1,5 +1,0 @@
-# Flutter web is a single-page app — every unknown path should hand back
-# index.html so the in-app router can take over (otherwise refreshes / deep
-# links 404 on Cloudflare Pages). The file gets copied verbatim into
-# build/web/ on `flutter build web`, which is what Pages serves from.
-/*    /index.html   200

@@ -1,0 +1,19 @@
+# Cloudflare Workers deploy config. The Dashboard build runs:
+#   npx wrangler deploy --assets ./build/web
+# which reads this file for the rest of the config.
+#
+# We intentionally ship NO Worker script — only static assets. The
+# `not_found_handling = "single-page-application"` is what makes deep
+# links / refreshes work for our Flutter web SPA. Without it, /owner/dashboard
+# returns 404 because there's no actual file at that path. With it,
+# unmatched paths are served `/index.html` (200), letting go_router pick up.
+#
+# We earlier tried a `_redirects` rule with `/* /index.html 200`, but
+# Workers' validator rejects it as "Infinite loop detected: would strip
+# .html / /index and re-fire the rule". `not_found_handling` is the
+# Workers-native way to express the same intent.
+name = "audit-management-app-frontend"
+compatibility_date = "2025-05-30"
+
+[assets]
+not_found_handling = "single-page-application"
