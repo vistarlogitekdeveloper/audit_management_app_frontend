@@ -48,23 +48,6 @@ class OwnerDashboardScreen extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Awaiting list is the dashboard's entrypoint — the owner's job
-            // is to acknowledge submitted audits, so put that work right
-            // at the top. Metric cards summarise; the action queue follows.
-            if (reviews.isEmpty)
-              const _Panel(
-                title: 'Audits awaiting acknowledgement',
-                icon: Icons.assignment_turned_in_outlined,
-                child: EmptyPanel(
-                  message:
-                      'No audits awaiting acknowledgement right now.',
-                ),
-              )
-            else
-              compact
-                  ? _ReviewCards(reviews: reviews)
-                  : _ReviewTable(reviews: reviews),
-            const SizedBox(height: 18),
             GridView.count(
               crossAxisCount: width >= 1000 ? 4 : 2,
               crossAxisSpacing: 14,
@@ -103,6 +86,20 @@ class OwnerDashboardScreen extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 18),
+            if (reviews.isEmpty)
+              const _Panel(
+                title: 'Audits awaiting acknowledgement',
+                icon: Icons.assignment_turned_in_outlined,
+                child: EmptyPanel(
+                  message:
+                      'No audits awaiting acknowledgement right now.',
+                ),
+              )
+            else
+              compact
+                  ? _ReviewCards(reviews: reviews)
+                  : _ReviewTable(reviews: reviews),
             const SizedBox(height: 18),
             _ActionPlanPanel(actions: actions),
           ],
@@ -165,6 +162,10 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
+/// Column flex weights, used by both the header row and every data row so
+/// they stay aligned without depending on Material's DataTable measuring.
+const List<int> _reviewColumnFlex = [3, 3, 2, 1, 2, 2];
+
 class _ReviewTable extends StatelessWidget {
   const _ReviewTable({required this.reviews});
 
@@ -175,53 +176,89 @@ class _ReviewTable extends StatelessWidget {
     return _Panel(
       title: 'Audits awaiting acknowledgement',
       icon: Icons.assignment_turned_in_outlined,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor:
-              WidgetStateProperty.all(AppColors.surface2),
-          // Without these, DataTable falls back to Theme.of(context)'s
-          // implicit text style, which in dark mode resolved to near-black
-          // on a dark surface and made the row text invisible.
-          headingTextStyle: AppTextStyles.medium13.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
-          ),
-          dataTextStyle: AppTextStyles.body13.copyWith(
-            color: AppColors.textPrimary,
-          ),
-          dataRowMinHeight: 58,
-          dataRowMaxHeight: 66,
-          columns: const [
-            DataColumn(label: Text('Project')),
-            DataColumn(label: Text('Auditor')),
-            DataColumn(label: Text('Date')),
-            DataColumn(label: Text('Pass %')),
-            DataColumn(label: Text('Fail points')),
-            DataColumn(label: Text('Action')),
+      // Flex-row layout instead of DataTable: each column fills its share of
+      // the panel width, so the row stretches to the right edge instead of
+      // shrinking to its content. Also avoids DataTable's intrinsic-width
+      // pass that was leaving large empty gaps between columns.
+      child: Column(
+        children: [
+          const _ReviewHeaderRow(),
+          const SizedBox(height: 6),
+          for (var i = 0; i < reviews.length; i++) ...[
+            _ReviewDataRow(row: reviews[i]),
+            if (i < reviews.length - 1) Divider(color: AppColors.border, height: 1),
           ],
-          rows: reviews.map((row) {
-            return DataRow(
-              cells: [
-                DataCell(Text(row.project)),
-                DataCell(Text(row.auditor)),
-                DataCell(Text(row.date)),
-                DataCell(Text(row.passRate)),
-                DataCell(Text(row.failPoints)),
-                DataCell(
-                  AppButton(
-                    label: 'Review',
-                    icon: Icons.rate_review_outlined,
-                    variant: AppButtonVariant.ghost,
-                    size: AppButtonSize.small,
-                    onPressed: () => context.go('/owner/review/${row.id}'),
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewHeaderRow extends StatelessWidget {
+  const _ReviewHeaderRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = AppTextStyles.medium12.copyWith(
+      color: AppColors.textSecondary,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.4,
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(flex: _reviewColumnFlex[0], child: Text('PROJECT', style: style)),
+          Expanded(flex: _reviewColumnFlex[1], child: Text('AUDITOR', style: style)),
+          Expanded(flex: _reviewColumnFlex[2], child: Text('DATE', style: style)),
+          Expanded(flex: _reviewColumnFlex[3], child: Text('PASS %', style: style)),
+          Expanded(flex: _reviewColumnFlex[4], child: Text('FAIL POINTS', style: style)),
+          Expanded(flex: _reviewColumnFlex[5], child: Text('ACTION', style: style)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewDataRow extends StatelessWidget {
+  const _ReviewDataRow({required this.row});
+
+  final _ReviewRow row;
+
+  @override
+  Widget build(BuildContext context) {
+    final cellStyle = AppTextStyles.body13.copyWith(color: AppColors.textPrimary);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: _reviewColumnFlex[0],
+            child: Text(row.project,
+                style: cellStyle.copyWith(fontWeight: FontWeight.w600)),
+          ),
+          Expanded(flex: _reviewColumnFlex[1], child: Text(row.auditor, style: cellStyle)),
+          Expanded(flex: _reviewColumnFlex[2], child: Text(row.date, style: cellStyle)),
+          Expanded(flex: _reviewColumnFlex[3], child: Text(row.passRate, style: cellStyle)),
+          Expanded(flex: _reviewColumnFlex[4], child: Text(row.failPoints, style: cellStyle)),
+          Expanded(
+            flex: _reviewColumnFlex[5],
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: AppButton(
+                label: 'Review',
+                icon: Icons.rate_review_outlined,
+                variant: AppButtonVariant.ghost,
+                size: AppButtonSize.small,
+                onPressed: () => context.go('/owner/review/${row.id}'),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
