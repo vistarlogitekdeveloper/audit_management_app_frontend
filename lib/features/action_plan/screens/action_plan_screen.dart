@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/services/image_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
@@ -153,6 +156,14 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
                 reviewing: provider.isReviewing,
                 onChanged: (item) =>
                     ref.read(actionPlanProvider).updateItem(index, item),
+                onAddPhoto: effectiveMode == ActionItemMode.edit
+                    ? () => _pickAndStagePhoto(index)
+                    : null,
+                onRemovePhoto: effectiveMode == ActionItemMode.edit
+                    ? (photoIndex) => ref
+                        .read(actionPlanProvider)
+                        .removeItemImageAt(index, photoIndex)
+                    : null,
                 onReview: isAuditor && !planClosed
                     ? (status, remark) =>
                         _reviewItem(provider.items[index].id, status, remark)
@@ -200,6 +211,51 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
         ],
       ),
     );
+  }
+
+  /// Opens the image picker for action item at [index] and stages the
+  /// result locally — same web/native branch the audit sheet uses, but
+  /// with no actual upload. The action-plan backend has no item-image
+  /// endpoint yet, so the photo lives in [ActionPlanProvider.items] for
+  /// the session; when the endpoint ships, [ActionPlanProvider.save]
+  /// will flush these in one pass.
+  Future<void> _pickAndStagePhoto(int index) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      // Light pre-compress on web matches the audit-sheet picker — the
+      // native ImageService path can't run there and uncompressed photos
+      // would bloat session memory.
+      imageQuality: kIsWeb ? 75 : null,
+      maxWidth: kIsWeb ? 1600 : null,
+    );
+    if (file == null) return;
+    final provider = ref.read(actionPlanProvider);
+
+    if (kIsWeb) {
+      final bytes = await file.readAsBytes();
+      if (bytes.length > AppConstants.maxImageSizeBytes) {
+        if (!mounted) return;
+        AppHelpers.showErrorSnackbar(
+          context,
+          'Image is too large (over 500 KB). Please pick a smaller photo.',
+        );
+        return;
+      }
+      provider.stageItemImage(index, file.path);
+      return;
+    }
+
+    String compressed;
+    try {
+      compressed =
+          await ImageService().compressToMax500Kb(file.path);
+    } on OversizedImageException catch (e) {
+      if (!mounted) return;
+      AppHelpers.showErrorSnackbar(context, e.message);
+      return;
+    }
+    provider.stageItemImage(index, compressed);
   }
 
   Future<void> _reviewItem(

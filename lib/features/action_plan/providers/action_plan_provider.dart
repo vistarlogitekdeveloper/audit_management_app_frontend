@@ -63,6 +63,32 @@ class ActionPlanProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Appends [imagePath] to the item's image list — local-only for now.
+  /// The backend has no action-item image endpoint yet, so saving an
+  /// item doesn't upload these. They stay for the session so the owner
+  /// can review what they staged before submitting. When the backend
+  /// endpoint ships, [save] will flush the unsynced paths in one pass
+  /// (same pattern audit sheets already use).
+  void stageItemImage(int index, String imagePath) {
+    if (index < 0 || index >= items.length) return;
+    final current = items[index];
+    items[index] = current.copyWith(
+      imagePaths: [...current.imagePaths, imagePath],
+    );
+    notifyListeners();
+  }
+
+  /// Removes the photo at [photoIndex] for the item at [index]. Mirrors
+  /// the × badge tap on the audit-sheet row.
+  void removeItemImageAt(int index, int photoIndex) {
+    if (index < 0 || index >= items.length) return;
+    final current = items[index];
+    if (photoIndex < 0 || photoIndex >= current.imagePaths.length) return;
+    final next = [...current.imagePaths]..removeAt(photoIndex);
+    items[index] = current.copyWith(imagePaths: next);
+    notifyListeners();
+  }
+
   /// Validates that every item has a corrective action, responsible person,
   /// audit parameter id, and a due date within [planDeadline].
   /// Returns the indices that failed validation.

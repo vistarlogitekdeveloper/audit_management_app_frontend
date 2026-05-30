@@ -6,9 +6,12 @@ import '../../../core/utils/date_utils.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_input.dart';
+import '../../../core/widgets/evidence_gallery.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../../core/widgets/status_pill.dart';
 import '../models/action_plan_model.dart';
+
+export '../../../core/widgets/evidence_gallery.dart' show ImageSourceType;
 
 /// Who is looking at this card, which controls which inputs / buttons render:
 /// - [edit]    : owner fills in corrective action, person, due date, status.
@@ -26,6 +29,8 @@ class ActionItemWidget extends StatefulWidget {
     this.mode = ActionItemMode.edit,
     this.onReview,
     this.reviewing = false,
+    this.onAddPhoto,
+    this.onRemovePhoto,
   });
 
   final ActionItemModel item;
@@ -47,6 +52,16 @@ class ActionItemWidget extends StatefulWidget {
   /// When true, the Approve / Reject buttons show a progress spinner and
   /// become non-tappable. Set while the parent's review call is in flight.
   final bool reviewing;
+
+  /// Called when the owner taps the "Add" tile in the evidence gallery.
+  /// The screen handles the picker dispatch and pipes the result into
+  /// [ActionPlanProvider.stageItemImage]. Null in review / read-only
+  /// modes so the gallery hides its Add tile.
+  final VoidCallback? onAddPhoto;
+
+  /// Called with the index in [item.imagePaths] when the owner taps a
+  /// thumbnail's × badge.
+  final ValueChanged<int>? onRemovePhoto;
 
   @override
   State<ActionItemWidget> createState() => _ActionItemWidgetState();
@@ -165,6 +180,21 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
               )
             else
               _ReadOnlyFields(item: widget.item),
+
+            // Evidence photos: owner attaches, reviewers / read-only viewers
+            // just see what was attached. Hidden entirely when there's
+            // nothing to show *and* the user can't add (review / read-only
+            // with an empty list).
+            if (_isEdit ||
+                widget.item.imagePaths.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _EvidenceSection(
+                imagePaths: widget.item.imagePaths,
+                isReadOnly: !_isEdit,
+                onAddPhoto: _isEdit ? widget.onAddPhoto : null,
+                onRemovePhoto: _isEdit ? widget.onRemovePhoto : null,
+              ),
+            ],
 
             // Auditor review controls — only render when the screen is in
             // review mode AND the parent has wired an onReview callback.
@@ -310,6 +340,53 @@ class _LabelValueWidget extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         child,
+      ],
+    );
+  }
+}
+
+/// Labelled evidence row shared by edit + read-only modes. Wraps the
+/// generic [EvidenceGallery] with the same field-label chrome as the
+/// inputs above it so the section reads as part of the form rather than
+/// a floating widget.
+class _EvidenceSection extends StatelessWidget {
+  const _EvidenceSection({
+    required this.imagePaths,
+    required this.isReadOnly,
+    required this.onAddPhoto,
+    required this.onRemovePhoto,
+  });
+
+  final List<String> imagePaths;
+  final bool isReadOnly;
+  final VoidCallback? onAddPhoto;
+  final ValueChanged<int>? onRemovePhoto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.image_outlined, size: 13, color: AppColors.textMuted),
+            const SizedBox(width: 5),
+            Text(
+              'Evidence photos',
+              style: AppTextStyles.medium12.copyWith(
+                color: AppColors.textSecondary,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        EvidenceGallery(
+          imagePaths: imagePaths,
+          isReadOnly: isReadOnly,
+          onAddTap: onAddPhoto,
+          onRemove: onRemovePhoto,
+        ),
       ],
     );
   }

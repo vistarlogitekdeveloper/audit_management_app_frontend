@@ -115,6 +115,7 @@ class ActionItemModel {
     this.reviewStatus = 'pending',
     this.reviewedBy,
     this.reviewedAt,
+    this.imagePaths = const [],
   });
 
   /// Backend ActionItem id (null for items not yet persisted).
@@ -146,6 +147,14 @@ class ActionItemModel {
   /// When the auditor set the current reviewStatus.
   final DateTime? reviewedAt;
 
+  /// Evidence photos staged on this item. Today's backend has no
+  /// action-item image endpoint, so this list is local-only — entries
+  /// stay for the session and don't survive a reload. Wired through the
+  /// same Wrap-of-thumbs UI the audit sheet uses so the upgrade path
+  /// (one POST per pending path on save) is mechanical once the backend
+  /// ships the endpoint.
+  final List<String> imagePaths;
+
   bool get isApproved => reviewStatus == 'approved';
   bool get isRejected => reviewStatus == 'rejected';
 
@@ -161,6 +170,7 @@ class ActionItemModel {
     String? reviewStatus,
     ReviewerRef? reviewedBy,
     DateTime? reviewedAt,
+    List<String>? imagePaths,
   }) {
     return ActionItemModel(
       id: id ?? this.id,
@@ -174,6 +184,7 @@ class ActionItemModel {
       reviewStatus: reviewStatus ?? this.reviewStatus,
       reviewedBy: reviewedBy ?? this.reviewedBy,
       reviewedAt: reviewedAt ?? this.reviewedAt,
+      imagePaths: imagePaths ?? this.imagePaths,
     );
   }
 
@@ -217,7 +228,32 @@ class ActionItemModel {
       reviewedAt: DateTime.tryParse(
         json['reviewed_at']?.toString() ?? json['reviewedAt']?.toString() ?? '',
       ),
+      // Forward-compat: when the backend gains an action-item image
+      // endpoint it'll likely return either `images` (matching audit
+      // sheets) or `image_urls`. Accept both, drop everything else.
+      imagePaths: _stringListFromAny(json['images'] ?? json['image_urls']),
     );
+  }
+
+  /// Coerces a JSON value into a list of non-empty strings. Tolerates the
+  /// backend sending a single string, a list of strings, or a list of
+  /// `{url: …}` objects (any of which are plausible shapes for an image
+  /// endpoint we don't control yet).
+  static List<String> _stringListFromAny(dynamic raw) {
+    if (raw is String && raw.isNotEmpty) return [raw];
+    if (raw is List) {
+      return raw
+          .map((entry) {
+            if (entry is String) return entry;
+            if (entry is Map) {
+              return (entry['url'] ?? entry['image_url'] ?? '').toString();
+            }
+            return '';
+          })
+          .where((s) => s.isNotEmpty)
+          .toList();
+    }
+    return const [];
   }
 
   /// Convert backend snake_case status to Title-Case for the dropdown.
