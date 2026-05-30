@@ -246,7 +246,19 @@ class _ReviewTable extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          headingRowColor: WidgetStateProperty.all(AppColors.greyTint),
+          headingRowColor:
+              WidgetStateProperty.all(AppColors.surface2),
+          // Without these, DataTable falls back to Theme.of(context)'s
+          // implicit text style, which in dark mode resolved to near-black
+          // on a dark surface and made the row text invisible.
+          headingTextStyle: AppTextStyles.medium13.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+          dataTextStyle: AppTextStyles.body13.copyWith(
+            color: AppColors.textPrimary,
+          ),
           dataRowMinHeight: 58,
           dataRowMaxHeight: 66,
           columns: const [

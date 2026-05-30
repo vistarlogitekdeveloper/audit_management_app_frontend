@@ -249,6 +249,12 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
           color: AppColors.textPrimary,
           letterSpacing: 0.4,
         ),
+        // Material's default DataTable text style is anchored to
+        // light-theme colours; without an explicit dataTextStyle the row
+        // text turns near-black on a dark surface and reads as invisible.
+        dataTextStyle: AppTextStyles.body13.copyWith(
+          color: AppColors.textPrimary,
+        ),
         dataRowMaxHeight: 60,
         dataRowMinHeight: 48,
         columnSpacing: 20,

@@ -380,7 +380,14 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
           : SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                headingRowColor: WidgetStateProperty.all(AppColors.greyTint),
+                headingRowColor: WidgetStateProperty.all(AppColors.surface2),
+                headingTextStyle: AppTextStyles.medium13.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+                dataTextStyle: AppTextStyles.body13.copyWith(
+                  color: AppColors.textPrimary,
+                ),
                 columns: const [
                   DataColumn(label: Text('Project')),
                   DataColumn(label: Text('Auditor')),

@@ -147,7 +147,14 @@ class _AuditReportScreenState extends ConsumerState<AuditReportScreen> {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
-              headingRowColor: WidgetStateProperty.all(AppColors.greyTint),
+              headingRowColor: WidgetStateProperty.all(AppColors.surface2),
+              headingTextStyle: AppTextStyles.medium13.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+              dataTextStyle: AppTextStyles.body13.copyWith(
+                color: AppColors.textPrimary,
+              ),
               dataRowMinHeight: 58,
               dataRowMaxHeight: 74,
               columns: const [
@@ -183,7 +190,14 @@ class _AuditReportScreenState extends ConsumerState<AuditReportScreen> {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                headingRowColor: WidgetStateProperty.all(AppColors.greyTint),
+                headingRowColor: WidgetStateProperty.all(AppColors.surface2),
+                headingTextStyle: AppTextStyles.medium13.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+                dataTextStyle: AppTextStyles.body13.copyWith(
+                  color: AppColors.textPrimary,
+                ),
                 columns: const [
                   DataColumn(label: Text('Fail point')),
                   DataColumn(label: Text('Corrective action')),

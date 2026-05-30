@@ -158,7 +158,14 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                       scrollDirection: Axis.horizontal,
                       child: DataTable(
                         headingRowColor:
-                            WidgetStateProperty.all(AppColors.greyTint),
+                            WidgetStateProperty.all(AppColors.surface2),
+                        headingTextStyle: AppTextStyles.medium13.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        dataTextStyle: AppTextStyles.body13.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
                         columns: const [
                           DataColumn(label: Text('User')),
                           DataColumn(label: Text('Email')),
