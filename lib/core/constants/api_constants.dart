@@ -61,6 +61,11 @@ class ApiConstants {
   /// Auditor closes the plan once every item is approved.
   static String actionPlanClose(String planId) =>
       '/action-plans/$planId/close';
+  /// Owner uploads an evidence photo against a single corrective item. The
+  /// backend stores the file and returns a presigned URL the auditor can load
+  /// from the action-plan tracker. Multipart field name is `image`.
+  static String actionPlanItemUploadImage(String planId, String itemId) =>
+      '/action-plans/$planId/items/$itemId/upload-image';
 
   // Cluster
   static const String clusterDashboard = '/cluster/dashboard';

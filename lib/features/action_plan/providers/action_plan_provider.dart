@@ -63,29 +63,62 @@ class ActionPlanProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Appends [imagePath] to the item's image list — local-only for now.
-  /// The backend has no action-item image endpoint yet, so saving an
-  /// item doesn't upload these. They stay for the session so the owner
-  /// can review what they staged before submitting. When the backend
-  /// endpoint ships, [save] will flush the unsynced paths in one pass
-  /// (same pattern audit sheets already use).
-  void stageItemImage(int index, String imagePath) {
+  /// Photos staged by the owner but not yet uploaded. Keyed by item index.
+  /// Picking only adds to this map + the visible thumbnail list; the actual
+  /// multipart POST is deferred until [save] / submit flushes the queue.
+  /// Same pattern the audit sheet uses — keeps the picker fast and lets the
+  /// owner remove freely without per-tap API traffic.
+  final Map<int, List<_PendingActionPhoto>> _pendingPhotos = {};
+
+  /// Native staging: file path on disk. Used on Android / iOS / desktop
+  /// where `dart:io` File can read the picker's path directly.
+  void stagePhotoFromPath(int index, String filePath) {
     if (index < 0 || index >= items.length) return;
-    final current = items[index];
-    items[index] = current.copyWith(
-      imagePaths: [...current.imagePaths, imagePath],
-    );
+    _appendDisplayed(index, filePath);
+    (_pendingPhotos[index] ??= []).add(_PendingActionPhoto(
+      previewPath: filePath,
+      filePath: filePath,
+    ));
     notifyListeners();
   }
 
-  /// Removes the photo at [photoIndex] for the item at [index]. Mirrors
-  /// the × badge tap on the audit-sheet row.
+  /// Web staging: in-memory bytes + filename. [previewPath] is the picker's
+  /// `blob:` URL the thumbnail renders from until the flush swaps in the
+  /// server URL.
+  void stagePhotoFromBytes({
+    required int index,
+    required String previewPath,
+    required Uint8List bytes,
+    required String filename,
+  }) {
+    if (index < 0 || index >= items.length) return;
+    _appendDisplayed(index, previewPath);
+    (_pendingPhotos[index] ??= []).add(_PendingActionPhoto(
+      previewPath: previewPath,
+      bytes: bytes,
+      filename: filename,
+    ));
+    notifyListeners();
+  }
+
+  void _appendDisplayed(int index, String pathOrPreview) {
+    final current = items[index];
+    items[index] = current.copyWith(
+      imagePaths: [...current.imagePaths, pathOrPreview],
+    );
+  }
+
+  /// Removes the photo at [photoIndex] for the item at [index]. Mirrors the
+  /// × badge on the audit-sheet row — also drops the entry from the pending
+  /// upload queue so a removed-before-flush photo never reaches the backend.
   void removeItemImageAt(int index, int photoIndex) {
     if (index < 0 || index >= items.length) return;
     final current = items[index];
     if (photoIndex < 0 || photoIndex >= current.imagePaths.length) return;
+    final removedPath = current.imagePaths[photoIndex];
     final next = [...current.imagePaths]..removeAt(photoIndex);
     items[index] = current.copyWith(imagePaths: next);
+    _pendingPhotos[index]?.removeWhere((p) => p.previewPath == removedPath);
     notifyListeners();
   }
 
@@ -117,6 +150,11 @@ class ActionPlanProvider extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
+      // Flush staged photos first so the upcoming PATCH `images` array
+      // contains every uploaded URL. If a single upload fails the whole
+      // save aborts — the owner gets a clear error rather than discovering
+      // half their evidence got through.
+      await _flushPendingPhotosLocked(plan.id);
       currentPlan = await _service.updateActionPlan(
         planId: plan.id,
         items: items,
@@ -130,6 +168,59 @@ class ActionPlanProvider extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Uploads every staged photo via the per-item endpoint, swapping each
+  /// preview entry to its returned server URL in place. Throws on the first
+  /// failure so the surrounding save() rejects with a useful message instead
+  /// of partial state. Caller already holds the [isLoading] lock.
+  Future<void> _flushPendingPhotosLocked(String planId) async {
+    for (final index in _pendingPhotos.keys.toList()) {
+      final list = _pendingPhotos[index]!;
+      while (list.isNotEmpty) {
+        // Item must exist server-side before we can attach a photo — new
+        // (un-id'd) items skip the upload but stay queued so a follow-up
+        // save catches them once the first save has persisted their ids.
+        if (index < 0 || index >= items.length) {
+          list.clear();
+          break;
+        }
+        final itemId = items[index].id;
+        if (itemId == null || itemId.isEmpty) {
+          // Defer — leave the photo staged for the next save() after this
+          // one persists the item and returns its id.
+          break;
+        }
+        final photo = list.first;
+        String? url;
+        if (photo.bytes != null) {
+          url = await _service.uploadActionItemImageBytes(
+            planId: planId,
+            itemId: itemId,
+            bytes: photo.bytes!,
+            filename: photo.filename ?? 'photo.jpg',
+          );
+        } else if (photo.filePath != null) {
+          url = await _service.uploadActionItemImage(
+            planId: planId,
+            itemId: itemId,
+            filePath: photo.filePath!,
+          );
+        }
+        if (url != null) _swapPreview(index, photo.previewPath, url);
+        list.removeAt(0);
+      }
+    }
+  }
+
+  void _swapPreview(int index, String previewPath, String serverUrl) {
+    if (index < 0 || index >= items.length) return;
+    final current = items[index];
+    final pos = current.imagePaths.indexOf(previewPath);
+    if (pos < 0) return;
+    final next = [...current.imagePaths];
+    next[pos] = serverUrl;
+    items[index] = current.copyWith(imagePaths: next);
   }
 
   /// Auditor approves / rejects a single item. Backend returns the updated
@@ -191,4 +282,22 @@ class ActionPlanProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+}
+
+/// One photo staged on an action item, waiting for the next [save] to flush
+/// it to the per-item upload endpoint. Either [filePath] (native) or
+/// [bytes] + [filename] (web) is populated. [previewPath] is the entry the
+/// thumbnail renders from — the flush swaps it to the server URL on success.
+class _PendingActionPhoto {
+  const _PendingActionPhoto({
+    required this.previewPath,
+    this.filePath,
+    this.bytes,
+    this.filename,
+  });
+
+  final String previewPath;
+  final String? filePath;
+  final Uint8List? bytes;
+  final String? filename;
 }

@@ -214,11 +214,11 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
   }
 
   /// Opens the image picker for action item at [index] and stages the
-  /// result locally — same web/native branch the audit sheet uses, but
-  /// with no actual upload. The action-plan backend has no item-image
-  /// endpoint yet, so the photo lives in [ActionPlanProvider.items] for
-  /// the session; when the endpoint ships, [ActionPlanProvider.save]
-  /// will flush these in one pass.
+  /// result. Web reads the bytes (queued for upload as bytes + filename);
+  /// native compresses the picked file and queues its path. The actual
+  /// network upload is deferred until the owner saves / submits — same
+  /// pattern the audit sheet uses, so picking stays snappy and removing
+  /// before submit costs no API calls.
   Future<void> _pickAndStagePhoto(int index) async {
     final picker = ImagePicker();
     final file = await picker.pickImage(
@@ -242,7 +242,12 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
         );
         return;
       }
-      provider.stageItemImage(index, file.path);
+      provider.stagePhotoFromBytes(
+        index: index,
+        previewPath: file.path,
+        bytes: bytes,
+        filename: file.name,
+      );
       return;
     }
 
@@ -255,7 +260,7 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
       AppHelpers.showErrorSnackbar(context, e.message);
       return;
     }
-    provider.stageItemImage(index, compressed);
+    provider.stagePhotoFromPath(index, compressed);
   }
 
   Future<void> _reviewItem(
