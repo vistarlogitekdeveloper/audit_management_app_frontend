@@ -1,3 +1,5 @@
+import '../../../core/utils/helpers.dart';
+
 class UserModel {
   const UserModel({
     required this.id,
@@ -24,7 +26,7 @@ class UserModel {
       email: json['email']?.toString() ?? '',
       role: json['role']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
-      isActive: json['is_active'] as bool? ?? true,
+      isActive: AppHelpers.parseBool(json['is_active'], fallback: true),
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
     );
   }

@@ -127,7 +127,13 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
             ? 0.0
             : provider.auditedCount / sheet.parameters.length;
 
-    final isAcknowledged = sheet.status == 'acknowledged';
+    // Treat `completed` the same as `acknowledged` here — the rest of the app
+    // (audit history, perform-audit list, auditor dashboard) already collapses
+    // those two sheet statuses into a single "finished" bucket. Without this,
+    // a sheet that lands in `completed` opens in editable mode while the
+    // dashboard shows it as done.
+    final isAcknowledged =
+        sheet.status == 'acknowledged' || sheet.status == 'completed';
     final isSubmitted =
         sheet.status == 'submitted' || sheet.status == 'under_review';
 

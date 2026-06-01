@@ -1,3 +1,5 @@
+import '../../../core/utils/helpers.dart';
+
 class ProjectAdminModel {
   const ProjectAdminModel({
     required this.id,
@@ -37,7 +39,7 @@ class ProjectAdminModel {
           json['cluster_manager_id']?.toString() ??
           '',
       clusterManagerName: cluster?['name']?.toString() ?? '',
-      isActive: json['is_active'] as bool? ?? true,
+      isActive: AppHelpers.parseBool(json['is_active'], fallback: true),
     );
   }
 

@@ -143,6 +143,22 @@ class AppHelpers {
     return result ?? false;
   }
 
+  /// Safely coerces a JSON value to bool. Accepts booleans, 0/1 ints,
+  /// "true"/"false"/"1"/"0" strings. A hard `value as bool?` cast throws
+  /// when the backend ships tinyint(1)s or string-encoded booleans (which
+  /// some ORM + DB combinations do for the `is_active` columns).
+  static bool parseBool(Object? value, {bool fallback = false}) {
+    if (value == null) return fallback;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final s = value.trim().toLowerCase();
+      if (s == 'true' || s == '1' || s == 'yes') return true;
+      if (s == 'false' || s == '0' || s == 'no') return false;
+    }
+    return fallback;
+  }
+
   /// Safely coerces a JSON value (num or numeric String) to double.
   /// Postgres DECIMAL columns serialize as Strings via Sequelize so plain
   /// `value as num?` casts blow up at runtime.

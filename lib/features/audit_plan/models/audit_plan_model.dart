@@ -47,7 +47,9 @@ class AuditPlanModel {
           data['projectName'] ??
           data['project_name']),
       projectIncharge: _nameFromNested(
-          data['projectIncharge'] ?? data['project_incharge']),
+          data['incharge'] ??
+          data['projectIncharge'] ??
+          data['project_incharge']),
       clusterManager: _nameFromNested(
           data['clusterManager'] ??
           data['cluster_manager'] ??
@@ -130,7 +132,12 @@ class ProjectLookupModel {
     // string (just the name) or a nested {id, name, email} object — handle
     // both, otherwise Map.toString() leaks `{id: …, name: …, email: …}` into
     // the UI (audit calendar Cluster Manager column).
-    final incharge = json['projectIncharge'] ?? json['project_incharge'];
+    // The live API uses `incharge` / `clusterManager` (Sequelize association
+    // names). Older payloads / form submissions use the snake/camel variants.
+    // Check every spelling we've seen so neither column silently goes blank.
+    final incharge = json['incharge'] ??
+        json['projectIncharge'] ??
+        json['project_incharge'];
     final cluster = json['clusterManager'] ?? json['cluster_manager'];
     final inchargeMap = incharge is Map ? incharge : const {};
     final clusterMap = cluster is Map ? cluster : const {};

@@ -195,7 +195,7 @@ class Project {
       name: json['name']?.toString() ?? '',
       location: json['location']?.toString() ?? '',
       clientName: json['client_name']?.toString(),
-      isActive: json['is_active'] as bool? ?? true,
+      isActive: AppHelpers.parseBool(json['is_active'], fallback: true),
     );
   }
 
