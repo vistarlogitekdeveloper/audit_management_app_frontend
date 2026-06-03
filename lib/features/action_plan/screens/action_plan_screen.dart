@@ -97,65 +97,77 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
     final effectiveMode =
         (planClosed || ownerDone) ? ActionItemMode.readOnly : mode;
 
-    final auditDate =
-        ref.watch(auditSheetProvider).currentSheet?.auditDate ?? DateTime.now();
+    final sheet = ref.watch(auditSheetProvider).currentSheet;
+    // Map fail-parameter name → audit-time evidence URL. Action items don't
+    // carry the parameter's image directly, but they keep the parameter name
+    // verbatim from the audit sheet, so a name lookup is reliable enough.
+    final evidenceByName = <String, String>{
+      for (final p in sheet?.parameters ?? const [])
+        if ((p.imageUrl ?? '').isNotEmpty) p.name: p.imageUrl!,
+    };
+    // Same trick for the auditor's observation note. The fallback path stores
+    // it on `auditorRemark` for unsaved items, but once the backend saves the
+    // plan that field is reused for the *review* remark, so we read the
+    // original observation straight from the audit sheet every render.
+    final observationByName = <String, String>{
+      for (final p in sheet?.parameters ?? const [])
+        if (p.remark.trim().isNotEmpty) p.name: p.remark.trim(),
+    };
+
+    final auditDate = sheet?.auditDate ?? DateTime.now();
     final deadline = plan?.dueDate ?? AppDateUtils.actionPlanDeadline(auditDate);
-    final remaining = AppDateUtils.daysRemaining(deadline);
     final invalidIndices = _showValidation && isEditor
         ? provider.validate(planDeadline: deadline)
         : <int>[];
+
+    // Render items in the same top-to-bottom sequence as the audit sheet
+    // (the 24-parameter list in AppConstants). The backend returns items in
+    // creation order, which doesn't match the audit flow and leaves the
+    // owner scanning around to find the next fail. Sort by parameter rank
+    // here without mutating the provider's list — updateItem still uses the
+    // original index.
+    int rank(String name) {
+      final i = AppConstants.auditParameters.indexOf(name);
+      return i < 0 ? AppConstants.auditParameters.length : i;
+    }
+
+    final displayOrder = List<int>.generate(provider.items.length, (i) => i)
+      ..sort((a, b) => rank(provider.items[a].parameterName)
+          .compareTo(rank(provider.items[b].parameterName)));
 
     return LoadingOverlay(
       isLoading: provider.isLoading,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PageHero(
-            title: planClosed
-                ? 'Action plan (closed)'
-                : isAuditor
-                    ? 'Review action plan'
-                    : 'Action plan',
-            subtitle: planClosed
-                ? 'Closed by the auditor — no further changes.'
-                : isAuditor
-                    ? 'Approve each corrective action or reject with a remark. Close the audit once every item is approved.'
-                    : 'Turn failed checkpoints into owned corrective work before the eight-day deadline.',
-            icon: Icons.checklist_rounded,
-            tone: planClosed
-                ? AppColors.success
-                : (isAuditor ? AppColors.primary : AppColors.danger),
-            action: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.white.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                remaining < 0
-                    ? '${-remaining} days overdue'
-                    : '$remaining days remaining',
-                style: AppTextStyles.medium14.copyWith(color: AppColors.white),
-              ),
-            ),
+          _HeaderBar(
+            mode: mode,
+            planClosed: planClosed,
+            plan: plan,
+            failCount: failCount,
+            deadline: deadline,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (plan == null)
             _NoPlanBanner(onAcknowledge: () => context.go('/owner/dashboard'))
           else ...[
-            _ReviewSummaryPanel(plan: plan, failCount: failCount),
-            const SizedBox(height: 16),
-            ...List.generate(
-              provider.items.length,
-              (index) => ActionItemWidget(
-                key: ValueKey(provider.items[index].id ?? 'new-$index'),
-                item: provider.items[index],
+            ...displayOrder.map((index) {
+              final item = provider.items[index];
+              return ActionItemWidget(
+                key: ValueKey(item.id ?? 'new-$index'),
+                item: item,
                 deadline: deadline,
                 hasValidationError: invalidIndices.contains(index),
                 mode: effectiveMode,
                 reviewing: provider.isReviewing,
-                onChanged: (item) =>
-                    ref.read(actionPlanProvider).updateItem(index, item),
+                auditEvidenceUrl: evidenceByName[item.parameterName],
+                auditObservation: observationByName[item.parameterName] ??
+                    (item.auditorRemark.isNotEmpty &&
+                            item.reviewStatus == 'pending'
+                        ? item.auditorRemark
+                        : null),
+                onChanged: (updated) =>
+                    ref.read(actionPlanProvider).updateItem(index, updated),
                 onAddPhoto: effectiveMode == ActionItemMode.edit
                     ? () => _pickAndStagePhoto(index)
                     : null,
@@ -166,11 +178,11 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
                     : null,
                 onReview: isAuditor && !planClosed
                     ? (status, remark) =>
-                        _reviewItem(provider.items[index].id, status, remark)
+                        _reviewItem(item.id, status, remark)
                     : null,
-              ),
-            ),
-            const SizedBox(height: 16),
+              );
+            }),
+            const SizedBox(height: 10),
             if (planClosed)
               _ClosedBanner(plan: plan)
             else if (isAuditor)
@@ -308,7 +320,6 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
       context: context,
       builder: (_) => const _CloseAuditDialog(),
     );
-    // Dialog returns null when cancelled, '' when submitted without text.
     if (remark == null) return;
     try {
       await ref.read(actionPlanProvider).closePlan(remark: remark);
@@ -364,68 +375,170 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
   }
 }
 
-/// Header panel: fail count + deadline + per-review counters so the auditor
-/// can see at a glance how much review work is left.
-class _ReviewSummaryPanel extends StatelessWidget {
-  const _ReviewSummaryPanel({required this.plan, required this.failCount});
+/// Compact one-card header that replaces the old PageHero + standalone
+/// metric panel. Shows title, subtitle, deadline chip, and the per-review
+/// counts inline so the whole screen-top fits in ~80 px instead of ~280.
+class _HeaderBar extends StatelessWidget {
+  const _HeaderBar({
+    required this.mode,
+    required this.planClosed,
+    required this.plan,
+    required this.failCount,
+    required this.deadline,
+  });
 
-  final ActionPlanModel plan;
+  final ActionItemMode mode;
+  final bool planClosed;
+  final ActionPlanModel? plan;
   final int failCount;
+  final DateTime deadline;
 
   @override
   Widget build(BuildContext context) {
-    final approved = plan.items.where((i) => i.isApproved).length;
-    final rejected = plan.items.where((i) => i.isRejected).length;
-    final pending = plan.items.length - approved - rejected;
-    return AppPanel(
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
+    final isAuditor = mode == ActionItemMode.review;
+    final remaining = AppDateUtils.daysRemaining(deadline);
+    final tone = planClosed
+        ? AppColors.success
+        : (isAuditor ? AppColors.primary : AppColors.danger);
+    final title = planClosed
+        ? 'Action plan (closed)'
+        : isAuditor
+            ? 'Review action plan'
+            : 'Action plan';
+    final subtitle = planClosed
+        ? 'Closed by the auditor — no further changes.'
+        : isAuditor
+            ? 'Approve each corrective action or reject with a remark.'
+            : 'Turn failed checkpoints into owned corrective work.';
+
+    int approved = 0, rejected = 0, pending = failCount;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 220,
-            child: InfoMetric(
-              label: 'Fail points',
-              value: '$failCount',
-              icon: Icons.error_outline,
-              color: AppColors.danger,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: tone.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.checklist_rounded, color: tone, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: AppTextStyles.title16),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: AppTextStyles.body12),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _DeadlineChip(remaining: remaining),
+            ],
           ),
-          SizedBox(
-            width: 220,
-            child: InfoMetric(
-              label: 'Submission deadline',
-              value: AppDateUtils.formatDisplay(plan.dueDate),
-              icon: Icons.event_busy_outlined,
-              color: AppColors.warning,
-            ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MiniStat(
+                label: 'Fail points',
+                value: '$failCount',
+                color: AppColors.danger,
+              ),
+              _MiniStat(
+                label: 'Deadline',
+                value: AppDateUtils.formatDisplay(deadline),
+                color: AppColors.warning,
+              ),
+              _MiniStat(
+                label: 'Pending',
+                value: '$pending',
+                color: AppColors.warning,
+              ),
+              _MiniStat(
+                label: 'Approved',
+                value: '$approved',
+                color: AppColors.success,
+              ),
+              _MiniStat(
+                label: 'Rejected',
+                value: '$rejected',
+                color: AppColors.danger,
+              ),
+            ],
           ),
-          SizedBox(
-            width: 160,
-            child: InfoMetric(
-              label: 'Pending review',
-              value: '$pending',
-              icon: Icons.hourglass_empty_rounded,
-              color: AppColors.warning,
-            ),
-          ),
-          SizedBox(
-            width: 160,
-            child: InfoMetric(
-              label: 'Approved',
-              value: '$approved',
-              icon: Icons.check_circle_outline,
-              color: AppColors.success,
-            ),
-          ),
-          SizedBox(
-            width: 160,
-            child: InfoMetric(
-              label: 'Rejected',
-              value: '$rejected',
-              icon: Icons.cancel_outlined,
-              color: AppColors.danger,
-            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeadlineChip extends StatelessWidget {
+  const _DeadlineChip({required this.remaining});
+  final int remaining;
+
+  @override
+  Widget build(BuildContext context) {
+    final overdue = remaining < 0;
+    final color = overdue
+        ? AppColors.danger
+        : (remaining <= 3 ? AppColors.warning : AppColors.textPrimary);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.30)),
+      ),
+      child: Text(
+        overdue ? '${-remaining}d overdue' : '${remaining}d left',
+        style: AppTextStyles.medium12.copyWith(color: color),
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: AppTextStyles.body11.copyWith(color: color)),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: AppTextStyles.medium13
+                .copyWith(color: color, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -544,11 +657,11 @@ class _CloseAuditDialog extends StatefulWidget {
 }
 
 class _CloseAuditDialogState extends State<_CloseAuditDialog> {
-  final _controller = TextEditingController();
+  final controller = TextEditingController();
 
   @override
   void dispose() {
-    _controller.dispose();
+    controller.dispose();
     super.dispose();
   }
 
@@ -566,7 +679,7 @@ class _CloseAuditDialogState extends State<_CloseAuditDialog> {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: _controller,
+            controller: controller,
             autofocus: true,
             maxLines: 4,
             decoration: const InputDecoration(
@@ -582,7 +695,7 @@ class _CloseAuditDialogState extends State<_CloseAuditDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          onPressed: () => Navigator.of(context).pop(controller.text.trim()),
           child: const Text('Close audit'),
         ),
       ],

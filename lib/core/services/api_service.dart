@@ -51,8 +51,14 @@ class ApiService {
           baseUrl: ApiConstants.baseUrl,
           connectTimeout: const Duration(seconds: 20),
           receiveTimeout: const Duration(seconds: 20),
+          // Intentionally no global Content-Type. dio defaults to
+          // application/json for POST/PATCH with a Map/JSON body, and for
+          // FormData uploads it generates `multipart/form-data; boundary=...`
+          // at send time. Forcing a global `application/json` here broke
+          // multipart uploads (boundary stripped → backend 400 "File is
+          // required") and any attempt to override it per-request triggered
+          // dio's "contentType vs content-type header mismatch" assertion.
           headers: {
-            'Content-Type': 'application/json',
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma': 'no-cache',
             'Expires': '0',
@@ -125,16 +131,15 @@ class ApiService {
     }
   }
 
-  /// Multipart POST (file upload). [formData] should be a Dio [FormData];
-  /// the content type (incl. boundary) is set explicitly so the global
-  /// JSON default header doesn't break the request.
+  /// Multipart POST (file upload). [formData] should be a Dio [FormData].
+  ///
+  /// We deliberately do NOT pass `Options(contentType: ...)` here — dio's
+  /// FormData adapter writes the correct `multipart/form-data; boundary=...`
+  /// header at send time. Setting it manually to plain `multipart/form-data`
+  /// strips the boundary and the server returns 400 "File is required".
   Future<dynamic> upload(String path, {required FormData formData}) async {
     try {
-      final response = await dio.post(
-        path,
-        data: formData,
-        options: Options(contentType: 'multipart/form-data'),
-      );
+      final response = await dio.post(path, data: formData);
       return response.data;
     } on DioException catch (error) {
       throw _toApiException(error);

@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Evidence photo capture / gallery pick. READ_EXTERNAL_STORAGE is capped
+         at SDK 32 because Android 13+ uses scoped READ_MEDIA_IMAGES instead. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
         android:label="audit_management_app_frontend"
         android:name="${applicationName}"

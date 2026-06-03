@@ -79,8 +79,14 @@ class AppConstants {
     'Employee / Customer connect',
   ];
 
-  // Max image size in bytes (500KB)
+  // Max image size in bytes (500KB) — audit-sheet evidence photos. Multer on
+  // the backend rejects anything larger.
   static const int maxImageSizeBytes = 500 * 1024;
+
+  // Max attachment size in bytes (10 MB) — action-plan item proof files,
+  // which the backend allows to be larger than audit-sheet photos and accepts
+  // PDFs as well as images.
+  static const int maxAttachmentSizeBytes = 10 * 1024 * 1024;
 
   // Action plan deadline (days from audit date)
   static const int actionPlanDeadlineDays = 8;

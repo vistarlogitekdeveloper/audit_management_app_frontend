@@ -142,6 +142,14 @@ class AuditSheetService {
         contentType: _imageMediaTypeFor(safeName),
       ),
     });
+    return _sendUpload(auditId, formData);
+  }
+
+  /// POSTs the multipart upload and extracts the presigned (browser-loadable)
+  /// URL from the response. Returns `null` when the backend only sent back an
+  /// internal `s3://` URI — the upload still succeeded; the caller just won't
+  /// be able to render it directly and keeps the local preview.
+  Future<String?> _sendUpload(String auditId, FormData formData) async {
     final response = await _apiService.upload(
       ApiConstants.uploadAuditSheetImage(auditId),
       formData: formData,

@@ -173,6 +173,14 @@ class ProjectLookupModel {
       location: json['location']?.toString() ?? '',
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProjectLookupModel && other.id == id);
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 class UserLookupModel {

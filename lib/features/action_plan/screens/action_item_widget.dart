@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -31,6 +34,8 @@ class ActionItemWidget extends StatefulWidget {
     this.reviewing = false,
     this.onAddPhoto,
     this.onRemovePhoto,
+    this.auditEvidenceUrl,
+    this.auditObservation,
   });
 
   final ActionItemModel item;
@@ -49,8 +54,8 @@ class ActionItemWidget extends StatefulWidget {
   /// Signature: (reviewStatus, remark) — remark is required for 'rejected'.
   final Future<void> Function(String reviewStatus, String remark)? onReview;
 
-  /// When true, the Approve / Reject buttons show a progress spinner and
-  /// become non-tappable. Set while the parent's review call is in flight.
+  /// When true, the per-item buttons (Approve / Reject / Add attachment)
+  /// show as busy. Set while the parent's call is in flight.
   final bool reviewing;
 
   /// Called when the owner taps the "Add" tile in the evidence gallery.
@@ -62,6 +67,16 @@ class ActionItemWidget extends StatefulWidget {
   /// Called with the index in [item.imagePaths] when the owner taps a
   /// thumbnail's × badge.
   final ValueChanged<int>? onRemovePhoto;
+
+  /// URL of the evidence photo the auditor captured for this fail
+  /// parameter during the audit. Rendered as a small read-only thumbnail
+  /// so the owner can see exactly what they're correcting.
+  final String? auditEvidenceUrl;
+
+  /// Observation note the auditor wrote on the audit sheet when marking
+  /// this parameter as Fail. Surfaces the original "why" so the owner can
+  /// frame the corrective action without flipping back to the audit.
+  final String? auditObservation;
 
   @override
   State<ActionItemWidget> createState() => _ActionItemWidgetState();
@@ -116,57 +131,37 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
   Widget build(BuildContext context) {
     final overDeadline =
         widget.item.dueDate.isAfter(widget.deadline.add(const Duration(days: 1)));
+    final hasAuditPhoto = (widget.auditEvidenceUrl ?? '').isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 10),
       child: AppPanel(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Fail-point banner + review-status pill on the right
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.redTint,
-                borderRadius: BorderRadius.circular(8),
-                border: widget.hasValidationError
-                    ? Border.all(color: AppColors.danger, width: 1.4)
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Fail: ${widget.item.parameterName}',
-                      style: AppTextStyles.medium13
-                          .copyWith(color: AppColors.danger),
-                    ),
-                  ),
-                  if (widget.item.reviewStatus != 'pending' ||
-                      widget.item.auditorRemark.isNotEmpty)
-                    StatusPill(status: widget.item.reviewStatus),
-                ],
-              ),
+            _Banner(
+              parameterName: widget.item.parameterName,
+              reviewStatus: widget.item.reviewStatus,
+              showPill: widget.item.reviewStatus != 'pending' ||
+                  widget.item.auditorRemark.isNotEmpty,
+              hasValidationError: widget.hasValidationError,
             ),
-
-            // Auditor remark + who reviewed when. Always visible if present —
-            // owners and cluster managers see exactly what the auditor said.
-            if (widget.item.auditorRemark.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: _AuditorRemarkBlock(
-                  remark: widget.item.auditorRemark,
-                  reviewer: widget.item.reviewedBy?.name,
-                  reviewedAt: widget.item.reviewedAt,
-                  status: widget.item.reviewStatus,
-                ),
+            if ((widget.auditObservation ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _AuditObservationBlock(
+                observation: widget.auditObservation!.trim(),
               ),
-
-            const SizedBox(height: 14),
-            // Edit mode is the only path that needs interactive inputs.
-            // Reviewers / read-only viewers see plain label-value rows so
-            // there's no ambiguity that the data is theirs to change.
+            ],
+            if (widget.item.auditorRemark.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _AuditorRemarkBlock(
+                remark: widget.item.auditorRemark,
+                reviewer: widget.item.reviewedBy?.name,
+                reviewedAt: widget.item.reviewedAt,
+                status: widget.item.reviewStatus,
+              ),
+            ],
+            const SizedBox(height: 10),
             if (_isEdit)
               _EditFields(
                 item: widget.item,
@@ -181,11 +176,17 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
             else
               _ReadOnlyFields(item: widget.item),
 
-            // Evidence photos: owner attaches, reviewers / read-only viewers
-            // just see what was attached. Hidden entirely when there's
-            // nothing to show *and* the user can't add (review / read-only
-            // with an empty list).
-            if (_isEdit ||
+            // Auditor's audit-time photo — small read-only thumbnail so the
+            // owner can see what the auditor captured for this fail point.
+            if (hasAuditPhoto) ...[
+              const SizedBox(height: 10),
+              _AuditPhotoThumb(url: widget.auditEvidenceUrl!),
+            ],
+
+            // Owner-staged photos (upload-on-save flow). Shown only when the
+            // screen wires an onAddPhoto callback or the item already has
+            // staged paths — keeps cards compact when this flow is unused.
+            if ((widget.onAddPhoto != null && _isEdit) ||
                 widget.item.imagePaths.isNotEmpty) ...[
               const SizedBox(height: 14),
               _EvidenceSection(
@@ -199,7 +200,7 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
             // Auditor review controls — only render when the screen is in
             // review mode AND the parent has wired an onReview callback.
             if (_isReview && widget.onReview != null) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               _ReviewActions(
                 current: widget.item.reviewStatus,
                 busy: widget.reviewing,
@@ -224,15 +225,56 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
         initial: widget.item.auditorRemark,
       ),
     );
-    // Dialog returns null if cancelled; for rejected an empty string is
-    // also treated as cancel because the dialog enforces a non-empty remark.
     if (remark == null) return;
     await widget.onReview!(reviewStatus, remark);
   }
 }
 
-/// Two-column display block shown to auditors and other read-only viewers.
-/// Pure label + value, no input chrome — there's nothing for them to edit.
+class _Banner extends StatelessWidget {
+  const _Banner({
+    required this.parameterName,
+    required this.reviewStatus,
+    required this.showPill,
+    required this.hasValidationError,
+  });
+
+  final String parameterName;
+  final String reviewStatus;
+  final bool showPill;
+  final bool hasValidationError;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.redTint,
+        borderRadius: BorderRadius.circular(8),
+        border: hasValidationError
+            ? Border.all(color: AppColors.danger, width: 1.4)
+            : null,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, size: 16, color: AppColors.danger),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              parameterName,
+              style: AppTextStyles.medium13.copyWith(color: AppColors.danger),
+            ),
+          ),
+          if (showPill) StatusPill(status: reviewStatus),
+        ],
+      ),
+    );
+  }
+}
+
+/// Read-only label/value grid for auditors + cluster managers. Two columns
+/// on wide screens, one on narrow — no fixed-aspect GridView so it sizes
+/// naturally to the content.
 class _ReadOnlyFields extends StatelessWidget {
   const _ReadOnlyFields({required this.item});
 
@@ -240,8 +282,8 @@ class _ReadOnlyFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 900;
-    final rows = <Widget>[
+    final wide = MediaQuery.of(context).size.width > 720;
+    final cells = <Widget>[
       _LabelValue(
         label: 'Corrective action',
         value: item.correctiveAction.isEmpty ? '—' : item.correctiveAction,
@@ -264,31 +306,35 @@ class _ReadOnlyFields extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var i = 0; i < rows.length; i++) ...[
-            rows[i],
-            if (i != rows.length - 1) const SizedBox(height: 12),
+          for (var i = 0; i < cells.length; i++) ...[
+            cells[i],
+            if (i != cells.length - 1) const SizedBox(height: 10),
           ],
         ],
       );
     }
     return Column(
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: rows[0]),
-            const SizedBox(width: 16),
-            Expanded(child: rows[1]),
-          ],
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: cells[0]),
+              const SizedBox(width: 16),
+              Expanded(child: cells[1]),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: rows[2]),
-            const SizedBox(width: 16),
-            Expanded(child: rows[3]),
-          ],
+        const SizedBox(height: 10),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: cells[2]),
+              const SizedBox(width: 16),
+              Expanded(child: cells[3]),
+            ],
+          ),
         ),
       ],
     );
@@ -308,12 +354,12 @@ class _LabelValue extends StatelessWidget {
       children: [
         Text(
           label,
-          style: AppTextStyles.medium13.copyWith(
+          style: AppTextStyles.medium12.copyWith(
             color: AppColors.textSecondary,
             letterSpacing: 0.3,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 2),
         Text(value, style: AppTextStyles.body14),
       ],
     );
@@ -333,12 +379,12 @@ class _LabelValueWidget extends StatelessWidget {
       children: [
         Text(
           label,
-          style: AppTextStyles.medium13.copyWith(
+          style: AppTextStyles.medium12.copyWith(
             color: AppColors.textSecondary,
             letterSpacing: 0.3,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 2),
         child,
       ],
     );
@@ -392,8 +438,9 @@ class _EvidenceSection extends StatelessWidget {
   }
 }
 
-/// Owner / Admin edit form — the original 2-column input grid. Pulled out
-/// of the main widget so the build method can branch cleanly on mode.
+/// Owner / Admin edit form. Replaces the previous fixed-aspect GridView with
+/// IntrinsicHeight rows so each cell hugs its actual content height — no
+/// more 200-pixel blank gaps.
 class _EditFields extends StatelessWidget {
   const _EditFields({
     required this.item,
@@ -417,75 +464,218 @@ class _EditFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: MediaQuery.of(context).size.width > 900 ? 2 : 1,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 3.2,
+    final wide = MediaQuery.of(context).size.width > 720;
+
+    final corrective = AppInput(
+      label: 'Corrective action',
+      controller: correctiveController,
+      dense: true,
+      validator: hasValidationError
+          ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
+          : null,
+      onChanged: (value) =>
+          onChanged(item.copyWith(correctiveAction: value)),
+    );
+    final person = AppInput(
+      label: 'Responsible person',
+      controller: personController,
+      dense: true,
+      validator: hasValidationError
+          ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
+          : null,
+      onChanged: (value) =>
+          onChanged(item.copyWith(responsiblePerson: value)),
+    );
+    final due = AppInput(
+      label: overDeadline
+          ? 'Due date (≤ ${AppDateUtils.formatDisplay(deadline)})'
+          : 'Due date',
+      controller: dueDateController,
+      isReadOnly: true,
+      dense: true,
+      suffixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
+      onTap: () async {
+        final firstDate = DateTime.now();
+        final lastDate =
+            deadline.isBefore(firstDate) ? firstDate : deadline;
+        final initial = item.dueDate.isBefore(firstDate)
+            ? firstDate
+            : (item.dueDate.isAfter(lastDate) ? lastDate : item.dueDate);
+        final selected = await showDatePicker(
+          context: context,
+          initialDate: initial,
+          firstDate: firstDate,
+          lastDate: lastDate,
+        );
+        if (selected != null) {
+          onChanged(item.copyWith(dueDate: selected));
+        }
+      },
+    );
+    final status = AppDropdown<String>(
+      label: 'Status',
+      value: item.status,
+      items: const [
+        DropdownMenuItem(value: 'Open', child: Text('Open')),
+        DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
+        DropdownMenuItem(value: 'Closed', child: Text('Closed')),
+      ],
+      onChanged: (value) {
+        if (value != null) onChanged(item.copyWith(status: value));
+      },
+    );
+
+    if (!wide) {
+      return Column(
+        children: [
+          corrective,
+          const SizedBox(height: 10),
+          person,
+          const SizedBox(height: 10),
+          due,
+          const SizedBox(height: 10),
+          status,
+        ],
+      );
+    }
+    return Column(
       children: [
-        AppInput(
-          label: 'Corrective action',
-          controller: correctiveController,
-          validator: hasValidationError
-              ? (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null
-              : null,
-          onChanged: (value) =>
-              onChanged(item.copyWith(correctiveAction: value)),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: corrective),
+              const SizedBox(width: 12),
+              Expanded(child: person),
+            ],
+          ),
         ),
-        AppInput(
-          label: 'Responsible person',
-          controller: personController,
-          validator: hasValidationError
-              ? (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null
-              : null,
-          onChanged: (value) =>
-              onChanged(item.copyWith(responsiblePerson: value)),
-        ),
-        AppInput(
-          label: overDeadline
-              ? 'Due date (must be ≤ ${AppDateUtils.formatDisplay(deadline)})'
-              : 'Due date',
-          controller: dueDateController,
-          isReadOnly: true,
-          suffixIcon: const Icon(Icons.calendar_today_outlined),
-          onTap: () async {
-            final firstDate = DateTime.now();
-            final lastDate =
-                deadline.isBefore(firstDate) ? firstDate : deadline;
-            final initial = item.dueDate.isBefore(firstDate)
-                ? firstDate
-                : (item.dueDate.isAfter(lastDate)
-                    ? lastDate
-                    : item.dueDate);
-            final selected = await showDatePicker(
-              context: context,
-              initialDate: initial,
-              firstDate: firstDate,
-              lastDate: lastDate,
-            );
-            if (selected != null) {
-              onChanged(item.copyWith(dueDate: selected));
-            }
-          },
-        ),
-        AppDropdown<String>(
-          label: 'Status',
-          value: item.status,
-          items: const [
-            DropdownMenuItem(value: 'Open', child: Text('Open')),
-            DropdownMenuItem(
-                value: 'In Progress', child: Text('In Progress')),
-            DropdownMenuItem(value: 'Closed', child: Text('Closed')),
-          ],
-          onChanged: (value) {
-            if (value != null) onChanged(item.copyWith(status: value));
-          },
+        const SizedBox(height: 10),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: due),
+              const SizedBox(width: 12),
+              Expanded(child: status),
+            ],
+          ),
         ),
       ],
+    );
+  }
+}
+
+/// Small read-only thumbnail of the photo the auditor captured for this fail
+/// point. Tap to open full-screen. Picks `Image.network` for http(s)/blob:
+/// URLs (server photos + web picker previews) and `Image.file` otherwise.
+class _AuditPhotoThumb extends StatelessWidget {
+  const _AuditPhotoThumb({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Audit photo',
+          style: AppTextStyles.medium12.copyWith(
+            color: AppColors.textSecondary,
+            letterSpacing: 0.3,
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: () => _openFullScreen(context),
+          borderRadius: BorderRadius.circular(8),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _thumb(width: 96, height: 80, fit: BoxFit.cover),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _thumb({
+    required double width,
+    required double height,
+    required BoxFit fit,
+  }) {
+    if (kIsWeb || url.startsWith('http') || url.startsWith('blob:')) {
+      return Image.network(url, width: width, height: height, fit: fit);
+    }
+    return Image.file(File(url), width: width, height: height, fit: fit);
+  }
+
+  void _openFullScreen(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: Center(
+                child: _thumb(width: 800, height: 800, fit: BoxFit.contain),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Surfaces the auditor's original observation note (captured on the audit
+/// sheet against the failed parameter) so the owner can frame the corrective
+/// action without flipping back to the audit. Distinct from
+/// [_AuditorRemarkBlock], which carries the auditor's review remark.
+class _AuditObservationBlock extends StatelessWidget {
+  const _AuditObservationBlock({required this.observation});
+
+  final String observation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.blueTint,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.assignment_outlined,
+                  size: 14, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Auditor observation',
+                style:
+                    AppTextStyles.medium12.copyWith(color: AppColors.primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(observation, style: AppTextStyles.body13),
+        ],
+      ),
     );
   }
 }
@@ -505,8 +695,6 @@ class _AuditorRemarkBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Rejected remarks need to read as a call-to-action for the owner;
-    // approved / pending ones are just informational.
     final isRejected = status == 'rejected';
     final tint = isRejected ? AppColors.redTint : AppColors.amberTint;
     final fg = isRejected ? AppColors.danger : AppColors.warning;
@@ -520,7 +708,7 @@ class _AuditorRemarkBlock extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: tint,
         borderRadius: BorderRadius.circular(8),
@@ -535,7 +723,7 @@ class _AuditorRemarkBlock extends StatelessWidget {
                 isRejected
                     ? Icons.report_gmailerrorred_rounded
                     : Icons.rate_review_outlined,
-                size: 16,
+                size: 14,
                 color: fg,
               ),
               const SizedBox(width: 6),
@@ -545,11 +733,17 @@ class _AuditorRemarkBlock extends StatelessWidget {
               ),
               if (meta.isNotEmpty) ...[
                 const SizedBox(width: 8),
-                Text(meta.toString(), style: AppTextStyles.body11),
+                Flexible(
+                  child: Text(
+                    meta.toString(),
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.body11,
+                  ),
+                ),
               ],
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(remark, style: AppTextStyles.body13),
         ],
       ),

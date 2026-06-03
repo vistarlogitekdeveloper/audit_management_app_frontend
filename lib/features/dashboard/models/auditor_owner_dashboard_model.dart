@@ -246,8 +246,19 @@ class OwnerAuditReview {
   /// Lower-cased status of the underlying AuditSheet — `submitted` /
   /// `acknowledged` / `closed` / etc. Carried here so the dashboard model
   /// can drop already-acknowledged rows even if the backend still includes
-  /// them in `awaitingAcknowledgement`.
+  /// them in `awaitingAcknowledgement`, and so the screen can render a
+  /// "Scheduled" pill instead of a Review button until the auditor submits.
   final String auditSheetStatus;
+
+  /// True once the auditor has actually performed the audit. Until then the
+  /// owner has nothing to acknowledge — the row should render as "Scheduled".
+  bool get isReadyForReview {
+    final s = auditSheetStatus.toLowerCase();
+    return s == 'submitted' ||
+        s == 'under_review' ||
+        s == 'completed' ||
+        s == 'acknowledged';
+  }
 
   factory OwnerAuditReview.fromJson(Map<String, dynamic> json) {
     // Backend `awaitingAcknowledgement` returns full AuditPlan rows with the

@@ -24,14 +24,18 @@ class OwnerDashboardScreen extends ConsumerWidget {
         onRetry: () => ref.invalidate(ownerDashboardProvider),
       ),
       data: (data) {
-        final reviews = data.auditsAwaiting.map((a) => _ReviewRow(
-          id: a.id,
-          project: a.project,
-          auditor: a.auditor,
-          date: AppDateUtils.formatDisplay(a.date),
-          passRate: '${a.passPercent.toStringAsFixed(0)}%',
-          failPoints: '${a.failPoints}',
-        )).toList();
+        final reviews = data.auditsAwaiting.map((a) {
+          final ready = a.isReadyForReview;
+          return _ReviewRow(
+            id: a.id,
+            project: a.project,
+            auditor: a.auditor,
+            date: AppDateUtils.formatDisplay(a.date),
+            passRate: ready ? '${a.passPercent.toStringAsFixed(0)}%' : '—',
+            failPoints: ready ? '${a.failPoints}' : '—',
+            isReadyForReview: ready,
+          );
+        }).toList();
         
         final actions = data.actionPlans.map((a) => _ActionRow(
           id: a.id,
@@ -249,13 +253,15 @@ class _ReviewDataRow extends StatelessWidget {
             flex: _reviewColumnFlex[5],
             child: Align(
               alignment: Alignment.centerLeft,
-              child: AppButton(
-                label: 'Review',
-                icon: Icons.rate_review_outlined,
-                variant: AppButtonVariant.ghost,
-                size: AppButtonSize.small,
-                onPressed: () => context.go('/owner/review/${row.id}'),
-              ),
+              child: row.isReadyForReview
+                  ? AppButton(
+                      label: 'Review',
+                      icon: Icons.rate_review_outlined,
+                      variant: AppButtonVariant.ghost,
+                      size: AppButtonSize.small,
+                      onPressed: () => context.go('/owner/review/${row.id}'),
+                    )
+                  : const _ScheduledPill(),
             ),
           ),
         ],
@@ -295,13 +301,19 @@ class _ReviewCards extends StatelessWidget {
                   style: AppTextStyles.body11.copyWith(color: AppColors.danger),
                 ),
                 const SizedBox(height: 12),
-                AppButton(
-                  label: 'Review',
-                  icon: Icons.rate_review_outlined,
-                  variant: AppButtonVariant.ghost,
-                  isFullWidth: true,
-                  onPressed: () => context.go('/owner/review/${row.id}'),
-                ),
+                if (row.isReadyForReview)
+                  AppButton(
+                    label: 'Review',
+                    icon: Icons.rate_review_outlined,
+                    variant: AppButtonVariant.ghost,
+                    isFullWidth: true,
+                    onPressed: () => context.go('/owner/review/${row.id}'),
+                  )
+                else
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: _ScheduledPill(),
+                  ),
               ],
             ),
           );
@@ -424,6 +436,7 @@ class _ReviewRow {
     required this.date,
     required this.passRate,
     required this.failPoints,
+    required this.isReadyForReview,
   });
 
   final String id;
@@ -432,6 +445,7 @@ class _ReviewRow {
   final String date;
   final String passRate;
   final String failPoints;
+  final bool isReadyForReview;
 }
 
 class _ActionRow {
@@ -453,6 +467,33 @@ class _ActionRow {
 
   /// Urgent when the plan is overdue or due within the next 3 days.
   bool get isUrgent => daysRemaining <= 3;
+}
+
+class _ScheduledPill extends StatelessWidget {
+  const _ScheduledPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.schedule_rounded, size: 14, color: AppColors.primary),
+          const SizedBox(width: 6),
+          Text(
+            'Scheduled',
+            style: AppTextStyles.body12.copyWith(color: AppColors.primary),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 BoxDecoration _panelDecoration() {
