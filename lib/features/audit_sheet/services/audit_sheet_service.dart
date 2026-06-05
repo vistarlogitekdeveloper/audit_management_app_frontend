@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 
 import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_constants.dart';
@@ -8,20 +8,19 @@ import '../../../core/services/api_service.dart';
 import '../models/audit_parameter_model.dart';
 import '../models/audit_sheet_model.dart';
 
-/// Picks a `DioMediaType` (aliased `MediaType` from http_parser) for an
-/// evidence upload based on the filename extension. Defaults to
-/// `image/jpeg` because (a) it's what the picker hands back in the vast
-/// majority of cases and (b) it's what the backend expects when the
-/// filename is missing entirely. multer's fileFilter rejects parts with no
-/// Content-Type, which surfaces as "Image is required" on the server side.
-DioMediaType _imageMediaTypeFor(String filename) {
+/// Picks a `MediaType` for an evidence upload based on the filename
+/// extension. Defaults to `image/jpeg` because (a) it's what the picker
+/// hands back in the vast majority of cases and (b) it's what the backend
+/// expects when the filename is missing entirely. multer's fileFilter
+/// rejects parts with no Content-Type, surfacing as "Image is required".
+MediaType _imageMediaTypeFor(String filename) {
   final lower = filename.toLowerCase();
-  if (lower.endsWith('.png')) return DioMediaType('image', 'png');
-  if (lower.endsWith('.gif')) return DioMediaType('image', 'gif');
-  if (lower.endsWith('.webp')) return DioMediaType('image', 'webp');
-  if (lower.endsWith('.heic')) return DioMediaType('image', 'heic');
-  if (lower.endsWith('.heif')) return DioMediaType('image', 'heif');
-  return DioMediaType('image', 'jpeg');
+  if (lower.endsWith('.png')) return MediaType('image', 'png');
+  if (lower.endsWith('.gif')) return MediaType('image', 'gif');
+  if (lower.endsWith('.webp')) return MediaType('image', 'webp');
+  if (lower.endsWith('.heic')) return MediaType('image', 'heic');
+  if (lower.endsWith('.heif')) return MediaType('image', 'heif');
+  return MediaType('image', 'jpeg');
 }
 
 class AcknowledgeResult {
@@ -54,18 +53,26 @@ class AuditSheetService {
     required List<Map<String, dynamic>> data,
     String status = AppConstants.statusDraft,
   }) async {
+    // Drop rows the auditor hasn't answered yet (result == null). Draft saves
+    // happen constantly while the sheet is still half-filled, and the backend
+    // Joi schema rejects the whole PATCH if any row's `result` isn't one of
+    // [pass, fail, na] — sending null 400s the request and loses the draft.
+    final parameters = <Map<String, dynamic>>[];
+    for (final row in data) {
+      final result = row['result'];
+      if (result == null) continue;
+      final resultText = result.toString();
+      if (resultText.isEmpty) continue;
+      parameters.add({
+        'param_index': row['index'],
+        'result': resultText,
+        'remark': row['remark'],
+      });
+    }
     final response = await _apiService.patch(
       ApiConstants.auditSheet(auditId),
       data: {
-        'parameters': data
-            .map(
-              (row) => {
-                'param_index': row['index'],
-                'result': row['result'],
-                'remark': row['remark'],
-              },
-            )
-            .toList(),
+        'parameters': parameters,
         'status': status,
       },
     );
@@ -81,79 +88,61 @@ class AuditSheetService {
   /// browser-loadable (http) URL when the backend provides one (presigned),
   /// otherwise `null` — the upload still succeeded, but the raw `s3://` URI
   /// can't be rendered, so the caller keeps the local preview for now.
+  ///
+  /// Routed through `ApiService.uploadMultipart` (package:http) rather than
+  /// dio: dio's BrowserHttpClientAdapter mangles the multipart body on
+  /// Flutter web and the backend responds "Image is required" even though
+  /// the bytes are on the wire. The http path uses the browser's native
+  /// FormData wiring on web and works the same on native.
   Future<String?> uploadParameterImage({
     required String auditId,
     required int paramIndex,
     required String filePath,
   }) async {
-    // Extract a basename for the part's Content-Disposition `filename=`
-    // (multer rejects parts without one) and pick an `image/...`
-    // Content-Type so multer's fileFilter accepts the part as a file.
     final basename =
         filePath.split(RegExp(r'[\\/]')).last.split('?').first;
     final filename = basename.isEmpty ? 'photo.jpg' : basename;
-    final formData = FormData.fromMap({
-      'param_index': paramIndex,
-      'image': await MultipartFile.fromFile(
-        filePath,
-        filename: filename,
-        contentType: _imageMediaTypeFor(filename),
-      ),
-    });
-    final response = await _apiService.upload(
+    final response = await _apiService.uploadMultipart(
       ApiConstants.uploadAuditSheetImage(auditId),
-      formData: formData,
+      fileFieldName: 'image',
+      filePath: filePath,
+      filename: filename,
+      contentType: _imageMediaTypeFor(filename),
+      extraFields: {'param_index': paramIndex.toString()},
     );
-    final data = _apiService.extractObject(response);
-    for (final key in const [
-      'presigned_url',
-      'signed_url',
-      'url',
-      'image_url',
-    ]) {
-      final value = data[key]?.toString();
-      if (value != null && value.startsWith('http')) return value;
-    }
-    return null;
+    return _presignedUrlFrom(response);
   }
 
   /// Bytes variant of [uploadParameterImage] for Flutter web, where
-  /// `dart:io` File and `path_provider` aren't available so
-  /// `MultipartFile.fromFile` can't be used. Otherwise identical — same
-  /// endpoint, same response handling.
+  /// `dart:io` File and `path_provider` aren't available so a file-path
+  /// upload can't be used. Otherwise identical — same endpoint, same
+  /// response handling.
   Future<String?> uploadParameterImageBytes({
     required String auditId,
     required int paramIndex,
     required Uint8List bytes,
     required String filename,
   }) async {
-    // On web some pickers hand back `XFile.name = ""` (camera captures,
-    // certain browsers). Dio drops the part's `filename=` header when the
-    // filename is empty, and multer then treats it as a plain form field
-    // instead of a file — backend responds "Image is required". Fall back
-    // to a sensible name + explicit image Content-Type so the part is
-    // recognised regardless.
+    // Some web pickers hand back `XFile.name = ""` (camera captures, certain
+    // browsers). multer treats a part with an empty filename as a plain
+    // field and the backend responds "Image is required" — fall back to a
+    // sensible name + explicit image Content-Type so the part is recognised.
     final safeName = filename.isEmpty ? 'photo.jpg' : filename;
-    final formData = FormData.fromMap({
-      'param_index': paramIndex,
-      'image': MultipartFile.fromBytes(
-        bytes,
-        filename: safeName,
-        contentType: _imageMediaTypeFor(safeName),
-      ),
-    });
-    return _sendUpload(auditId, formData);
+    final response = await _apiService.uploadMultipart(
+      ApiConstants.uploadAuditSheetImage(auditId),
+      fileFieldName: 'image',
+      bytes: bytes,
+      filename: safeName,
+      contentType: _imageMediaTypeFor(safeName),
+      extraFields: {'param_index': paramIndex.toString()},
+    );
+    return _presignedUrlFrom(response);
   }
 
-  /// POSTs the multipart upload and extracts the presigned (browser-loadable)
-  /// URL from the response. Returns `null` when the backend only sent back an
-  /// internal `s3://` URI — the upload still succeeded; the caller just won't
-  /// be able to render it directly and keeps the local preview.
-  Future<String?> _sendUpload(String auditId, FormData formData) async {
-    final response = await _apiService.upload(
-      ApiConstants.uploadAuditSheetImage(auditId),
-      formData: formData,
-    );
+  /// Pulls the first browser-loadable (http) URL out of an upload response.
+  /// Returns null when only an internal `s3://` URI is present — the upload
+  /// still succeeded; the caller keeps the local preview for now.
+  String? _presignedUrlFrom(Map<String, dynamic> response) {
     final data = _apiService.extractObject(response);
     for (final key in const [
       'presigned_url',

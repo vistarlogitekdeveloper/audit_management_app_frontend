@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/api_constants.dart';
@@ -131,19 +135,80 @@ class ApiService {
     }
   }
 
-  /// Multipart POST (file upload). [formData] should be a Dio [FormData].
+  /// Multipart POST via `package:http` instead of dio. We need this on
+  /// Flutter web because dio's BrowserHttpClientAdapter serialises FormData
+  /// to a raw byte stream and sends it via XHR with a manually-written
+  /// Content-Type header — multer on the backend can't always parse the
+  /// resulting body (every upload returns 400 "File is required" / "Image
+  /// is required" even though the bytes are on the wire). `http.MultipartRequest`
+  /// uses the browser's native FormData wiring on web, which Just Works,
+  /// and matches the example the backend team published. Used for native
+  /// uploads too so there's a single code path.
   ///
-  /// We deliberately do NOT pass `Options(contentType: ...)` here — dio's
-  /// FormData adapter writes the correct `multipart/form-data; boundary=...`
-  /// header at send time. Setting it manually to plain `multipart/form-data`
-  /// strips the boundary and the server returns 400 "File is required".
-  Future<dynamic> upload(String path, {required FormData formData}) async {
-    try {
-      final response = await dio.post(path, data: formData);
-      return response.data;
-    } on DioException catch (error) {
-      throw _toApiException(error);
+  /// [fileFieldName] is the multipart field the backend reads (e.g. 'image').
+  /// Pass exactly one of [filePath] (native) or ([bytes] + [filename]) (web).
+  /// [extraFields] are appended as plain form fields next to the file part.
+  Future<Map<String, dynamic>> uploadMultipart(
+    String path, {
+    required String fileFieldName,
+    String? filePath,
+    Uint8List? bytes,
+    String? filename,
+    MediaType? contentType,
+    Map<String, String> extraFields = const {},
+  }) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$path');
+    final request = http.MultipartRequest('POST', uri);
+    final token = preferences.getString(AppConstants.authTokenKey);
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
     }
+    request.fields.addAll(extraFields);
+
+    if (bytes != null) {
+      request.files.add(http.MultipartFile.fromBytes(
+        fileFieldName,
+        bytes,
+        filename: filename ?? 'upload',
+        contentType: contentType,
+      ));
+    } else if (filePath != null) {
+      request.files.add(await http.MultipartFile.fromPath(
+        fileFieldName,
+        filePath,
+        contentType: contentType,
+      ));
+    } else {
+      throw ArgumentError('Provide bytes (web) or filePath (native).');
+    }
+
+    final streamed = await request.send();
+    final body = await streamed.stream.bytesToString();
+    Map<String, dynamic> json;
+    try {
+      json = jsonDecode(body) as Map<String, dynamic>;
+    } catch (_) {
+      json = <String, dynamic>{};
+    }
+
+    if (streamed.statusCode == 401) {
+      _clearSessionPrefs();
+      if (!_unauthorizedController.isClosed) {
+        _unauthorizedController.add(null);
+      }
+    }
+
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      final message = json['message']?.toString() ??
+          'Upload failed (HTTP ${streamed.statusCode}).';
+      throw ApiException(
+        message: message,
+        statusCode: streamed.statusCode,
+        isFileTooLarge: streamed.statusCode == 413 ||
+            message.toLowerCase().contains('too large'),
+      );
+    }
+    return json;
   }
 
   Future<dynamic> patch(String path, {Object? data}) async {
