@@ -68,6 +68,10 @@ class EvidenceGallery extends StatelessWidget {
       children: [
         for (var i = 0; i < imagePaths.length; i++)
           _EvidenceThumb(
+            // Keying by path + index keeps Flutter from shuffling elements
+            // when one entry is removed mid-list; Image.network is happier
+            // when its host widget identity is stable.
+            key: ValueKey('${imagePaths[i]}#$i'),
             path: imagePaths[i],
             isReadOnly: isReadOnly,
             onRemove: onRemove == null ? null : () => onRemove!(i),
@@ -80,6 +84,7 @@ class EvidenceGallery extends StatelessWidget {
 
 class _EvidenceThumb extends StatelessWidget {
   const _EvidenceThumb({
+    super.key,
     required this.path,
     required this.isReadOnly,
     required this.onRemove,
@@ -94,11 +99,34 @@ class _EvidenceThumb extends StatelessWidget {
     // On web the picker hands back blob: URLs and dart:io File doesn't
     // exist at runtime, so Image.file would crash. Always render via
     // Image.network on web — it handles blob: and http(s) identically.
+    //
+    // `gaplessPlayback` keeps the old frame on screen while the new one
+    // decodes, so removing a sibling photo doesn't flash this thumbnail
+    // to grey. `cacheWidth/Height` caps the decoded buffer so a 4 MB
+    // presigned photo doesn't tie up the raster thread on every rebuild.
     final thumb = ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: (kIsWeb || path.startsWith('http'))
-          ? Image.network(path, width: 60, height: 60, fit: BoxFit.cover)
-          : Image.file(File(path), width: 60, height: 60, fit: BoxFit.cover),
+      child: (kIsWeb || path.startsWith('http') || path.startsWith('blob:'))
+          ? Image.network(
+              path,
+              width: 60,
+              height: 60,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              cacheWidth: 120,
+              cacheHeight: 120,
+              errorBuilder: (_, __, ___) => _thumbFallback(),
+            )
+          : Image.file(
+              File(path),
+              width: 60,
+              height: 60,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              cacheWidth: 120,
+              cacheHeight: 120,
+              errorBuilder: (_, __, ___) => _thumbFallback(),
+            ),
     );
 
     if (isReadOnly || onRemove == null) return thumb;
@@ -117,29 +145,42 @@ class _EvidenceThumb extends StatelessWidget {
             top: 0,
             child: Tooltip(
               message: 'Remove photo',
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onRemove,
-                  customBorder: const CircleBorder(),
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: AppColors.danger,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.surface, width: 2),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.close_rounded,
-                        size: 13, color: AppColors.white),
+              // GestureDetector instead of Material/InkWell — InkWell needs an
+              // ancestor Material and a hit-target that fully contains the
+              // tap, which the Stack's `Clip.none` layout was occasionally
+              // breaking on web (clicks falling through to the thumbnail's
+              // image-network gesture and stalling the frame).
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onRemove,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: AppColors.danger,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.surface, width: 2),
                   ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.close_rounded,
+                      size: 13, color: AppColors.white),
                 ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _thumbFallback() {
+    return Container(
+      width: 60,
+      height: 60,
+      color: AppColors.surface2,
+      alignment: Alignment.center,
+      child: Icon(Icons.broken_image_outlined,
+          size: 20, color: AppColors.textMuted),
     );
   }
 }

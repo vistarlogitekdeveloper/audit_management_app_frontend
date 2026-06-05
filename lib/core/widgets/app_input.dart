@@ -25,6 +25,8 @@ class AppInput extends StatefulWidget {
     this.maxLength,
     this.onTap,
     this.onChanged,
+    this.onSubmitted,
+    this.focusNode,
     this.autofocus = false,
     this.enabled = true,
     this.dense = false,
@@ -44,6 +46,11 @@ class AppInput extends StatefulWidget {
   final int? maxLength;
   final VoidCallback? onTap;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  /// Optional external focus node — defaults to an internally-managed one.
+  /// Pass this when the input lives inside a `RawAutocomplete`, which owns
+  /// the field's focus node itself.
+  final FocusNode? focusNode;
   final bool autofocus;
   final bool enabled;
   final bool dense;
@@ -53,14 +60,17 @@ class AppInput extends StatefulWidget {
 }
 
 class _AppInputState extends State<AppInput> {
-  late final FocusNode _focusNode;
+  /// Only created when the caller didn't pass [AppInput.focusNode]; we own
+  /// disposal of this one and never touch a borrowed external node.
+  FocusNode? _internalFocusNode;
+  FocusNode get _focusNode => widget.focusNode ?? _internalFocusNode!;
   bool _focused = false;
   bool _obscured = true;
 
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode();
+    if (widget.focusNode == null) _internalFocusNode = FocusNode();
     _focusNode.addListener(_onFocusChange);
     _obscured = widget.obscureText;
   }
@@ -70,10 +80,21 @@ class _AppInputState extends State<AppInput> {
   }
 
   @override
+  void didUpdateWidget(AppInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      // Move the focus listener onto the new node so the field still pulses
+      // when focus changes after a hot reload / config swap.
+      (oldWidget.focusNode ?? _internalFocusNode)
+          ?.removeListener(_onFocusChange);
+      _focusNode.addListener(_onFocusChange);
+    }
+  }
+
+  @override
   void dispose() {
-    _focusNode
-      ..removeListener(_onFocusChange)
-      ..dispose();
+    _focusNode.removeListener(_onFocusChange);
+    _internalFocusNode?.dispose();
     super.dispose();
   }
 
@@ -111,6 +132,7 @@ class _AppInputState extends State<AppInput> {
         maxLength: widget.maxLength,
         onTap: widget.onTap,
         onChanged: widget.onChanged,
+        onFieldSubmitted: widget.onSubmitted,
         autofocus: widget.autofocus,
         style: AppTextStyles.body14,
         cursorColor: AppColors.primary,

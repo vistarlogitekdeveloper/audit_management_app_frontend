@@ -1,11 +1,10 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/services/image_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
@@ -15,6 +14,7 @@ import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../audit_sheet/providers/audit_sheet_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../users/providers/user_provider.dart';
 import '../models/action_plan_model.dart';
 import '../providers/action_plan_provider.dart';
 import 'action_item_widget.dart';
@@ -38,27 +38,25 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
   }
 
   Future<void> _load() async {
+    // Fire the users fetch alongside the rest so the "Responsible person"
+    // typeahead has something to suggest by the time the form renders.
+    // Failures (e.g. 403 for non-admin roles) don't block the screen —
+    // the typeahead simply falls back to free-text input.
+    unawaited(ref.read(userProvider).fetchUsers());
+
+    // The URL parameter is the action-plan id (the dashboard navigates
+    // with `OwnerActionPlan.id`), which `GET /action-plans/:id` accepts
+    // directly. `GET /audit-sheets/:auditPlanId` would 404 on that same
+    // value, so load the plan first and derive the audit-sheet id from it
+    // for the subsequent sheet fetch.
+    final actionPlan = ref.read(actionPlanProvider);
+    await actionPlan.loadActionPlan(widget.auditId);
+
     final sheetProvider = ref.read(auditSheetProvider);
-    await sheetProvider.loadSheet(widget.auditId);
-    final fallback = (sheetProvider.currentSheet?.parameters ?? [])
-        .where((p) => p.result == AppConstants.resultFail)
-        .map(
-          (p) => ActionItemModel(
-            auditParameterId: '',
-            parameterName: p.name,
-            correctiveAction: '',
-            responsiblePerson: '',
-            dueDate: AppDateUtils.actionPlanDeadline(
-              sheetProvider.currentSheet?.auditDate ?? DateTime.now(),
-            ),
-            status: AppConstants.apOpen,
-            auditorRemark: p.remark,
-          ),
-        )
-        .toList();
-    await ref
-        .read(actionPlanProvider)
-        .loadActionPlan(widget.auditId, fallbackItems: fallback);
+    final auditSheetId = actionPlan.currentPlan?.auditSheetId ?? '';
+    if (auditSheetId.isNotEmpty) {
+      await sheetProvider.loadSheet(auditSheetId);
+    }
   }
 
   /// Owner / Admin can edit items, Auditor reviews them, everyone else (e.g.
@@ -98,13 +96,16 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
         (planClosed || ownerDone) ? ActionItemMode.readOnly : mode;
 
     final sheet = ref.watch(auditSheetProvider).currentSheet;
-    // Map fail-parameter name → audit-time evidence URL. Action items don't
-    // carry the parameter's image directly, but they keep the parameter name
-    // verbatim from the audit sheet, so a name lookup is reliable enough.
-    final evidenceByName = <String, String>{
-      for (final p in sheet?.parameters ?? const [])
-        if ((p.imageUrl ?? '').isNotEmpty) p.name: p.imageUrl!,
-    };
+
+    // All active users surfaced as type-ahead suggestions for the
+    // "Responsible person" field. The list is name-only (the dropdown
+    // matches on substring); inactive users are filtered so we don't
+    // suggest someone who can't actually act on the item.
+    final usersWatched = ref.watch(userProvider);
+    final responsiblePersonSuggestions = usersWatched.users
+        .where((u) => u.isActive && u.name.trim().isNotEmpty)
+        .map((u) => u.name)
+        .toList();
     // Same trick for the auditor's observation note. The fallback path stores
     // it on `auditorRemark` for unsaved items, but once the backend saves the
     // plan that field is reused for the *review* remark, so we read the
@@ -160,7 +161,7 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
                 hasValidationError: invalidIndices.contains(index),
                 mode: effectiveMode,
                 reviewing: provider.isReviewing,
-                auditEvidenceUrl: evidenceByName[item.parameterName],
+                responsiblePersonSuggestions: responsiblePersonSuggestions,
                 auditObservation: observationByName[item.parameterName] ??
                     (item.auditorRemark.isNotEmpty &&
                             item.reviewStatus == 'pending'
@@ -168,14 +169,6 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
                         : null),
                 onChanged: (updated) =>
                     ref.read(actionPlanProvider).updateItem(index, updated),
-                onAddPhoto: effectiveMode == ActionItemMode.edit
-                    ? () => _pickAndStagePhoto(index)
-                    : null,
-                onRemovePhoto: effectiveMode == ActionItemMode.edit
-                    ? (photoIndex) => ref
-                        .read(actionPlanProvider)
-                        .removeItemImageAt(index, photoIndex)
-                    : null,
                 onReview: isAuditor && !planClosed
                     ? (status, remark) =>
                         _reviewItem(item.id, status, remark)
@@ -223,56 +216,6 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
         ],
       ),
     );
-  }
-
-  /// Opens the image picker for action item at [index] and stages the
-  /// result. Web reads the bytes (queued for upload as bytes + filename);
-  /// native compresses the picked file and queues its path. The actual
-  /// network upload is deferred until the owner saves / submits — same
-  /// pattern the audit sheet uses, so picking stays snappy and removing
-  /// before submit costs no API calls.
-  Future<void> _pickAndStagePhoto(int index) async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: ImageSource.gallery,
-      // Light pre-compress on web matches the audit-sheet picker — the
-      // native ImageService path can't run there and uncompressed photos
-      // would bloat session memory.
-      imageQuality: kIsWeb ? 75 : null,
-      maxWidth: kIsWeb ? 1600 : null,
-    );
-    if (file == null) return;
-    final provider = ref.read(actionPlanProvider);
-
-    if (kIsWeb) {
-      final bytes = await file.readAsBytes();
-      if (bytes.length > AppConstants.maxImageSizeBytes) {
-        if (!mounted) return;
-        AppHelpers.showErrorSnackbar(
-          context,
-          'Image is too large (over 500 KB). Please pick a smaller photo.',
-        );
-        return;
-      }
-      provider.stagePhotoFromBytes(
-        index: index,
-        previewPath: file.path,
-        bytes: bytes,
-        filename: file.name,
-      );
-      return;
-    }
-
-    String compressed;
-    try {
-      compressed =
-          await ImageService().compressToMax500Kb(file.path);
-    } on OversizedImageException catch (e) {
-      if (!mounted) return;
-      AppHelpers.showErrorSnackbar(context, e.message);
-      return;
-    }
-    provider.stagePhotoFromPath(index, compressed);
   }
 
   Future<void> _reviewItem(

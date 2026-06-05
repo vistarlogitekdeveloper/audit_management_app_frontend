@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -9,12 +6,9 @@ import '../../../core/utils/date_utils.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_input.dart';
-import '../../../core/widgets/evidence_gallery.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../../core/widgets/status_pill.dart';
 import '../models/action_plan_model.dart';
-
-export '../../../core/widgets/evidence_gallery.dart' show ImageSourceType;
 
 /// Who is looking at this card, which controls which inputs / buttons render:
 /// - [edit]    : owner fills in corrective action, person, due date, status.
@@ -32,10 +26,8 @@ class ActionItemWidget extends StatefulWidget {
     this.mode = ActionItemMode.edit,
     this.onReview,
     this.reviewing = false,
-    this.onAddPhoto,
-    this.onRemovePhoto,
-    this.auditEvidenceUrl,
     this.auditObservation,
+    this.responsiblePersonSuggestions = const [],
   });
 
   final ActionItemModel item;
@@ -58,25 +50,14 @@ class ActionItemWidget extends StatefulWidget {
   /// show as busy. Set while the parent's call is in flight.
   final bool reviewing;
 
-  /// Called when the owner taps the "Add" tile in the evidence gallery.
-  /// The screen handles the picker dispatch and pipes the result into
-  /// [ActionPlanProvider.stageItemImage]. Null in review / read-only
-  /// modes so the gallery hides its Add tile.
-  final VoidCallback? onAddPhoto;
-
-  /// Called with the index in [item.imagePaths] when the owner taps a
-  /// thumbnail's × badge.
-  final ValueChanged<int>? onRemovePhoto;
-
-  /// URL of the evidence photo the auditor captured for this fail
-  /// parameter during the audit. Rendered as a small read-only thumbnail
-  /// so the owner can see exactly what they're correcting.
-  final String? auditEvidenceUrl;
-
   /// Observation note the auditor wrote on the audit sheet when marking
   /// this parameter as Fail. Surfaces the original "why" so the owner can
   /// frame the corrective action without flipping back to the audit.
   final String? auditObservation;
+
+  /// Pool of names the "Responsible person" field offers as type-ahead
+  /// suggestions. The owner can still type any name not in the list.
+  final List<String> responsiblePersonSuggestions;
 
   @override
   State<ActionItemWidget> createState() => _ActionItemWidgetState();
@@ -131,7 +112,6 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
   Widget build(BuildContext context) {
     final overDeadline =
         widget.item.dueDate.isAfter(widget.deadline.add(const Duration(days: 1)));
-    final hasAuditPhoto = (widget.auditEvidenceUrl ?? '').isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -146,12 +126,10 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
                   widget.item.auditorRemark.isNotEmpty,
               hasValidationError: widget.hasValidationError,
             ),
-            if ((widget.auditObservation ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _AuditObservationBlock(
-                observation: widget.auditObservation!.trim(),
-              ),
-            ],
+            const SizedBox(height: 8),
+            _AuditObservationBlock(
+              observation: (widget.auditObservation ?? '').trim(),
+            ),
             if (widget.item.auditorRemark.isNotEmpty) ...[
               const SizedBox(height: 8),
               _AuditorRemarkBlock(
@@ -171,31 +149,11 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
                 correctiveController: _correctiveController,
                 personController: _personController,
                 dueDateController: _dueDateController,
+                personSuggestions: widget.responsiblePersonSuggestions,
                 onChanged: widget.onChanged,
               )
             else
               _ReadOnlyFields(item: widget.item),
-
-            // Auditor's audit-time photo — small read-only thumbnail so the
-            // owner can see what the auditor captured for this fail point.
-            if (hasAuditPhoto) ...[
-              const SizedBox(height: 10),
-              _AuditPhotoThumb(url: widget.auditEvidenceUrl!),
-            ],
-
-            // Owner-staged photos (upload-on-save flow). Shown only when the
-            // screen wires an onAddPhoto callback or the item already has
-            // staged paths — keeps cards compact when this flow is unused.
-            if ((widget.onAddPhoto != null && _isEdit) ||
-                widget.item.imagePaths.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              _EvidenceSection(
-                imagePaths: widget.item.imagePaths,
-                isReadOnly: !_isEdit,
-                onAddPhoto: _isEdit ? widget.onAddPhoto : null,
-                onRemovePhoto: _isEdit ? widget.onRemovePhoto : null,
-              ),
-            ],
 
             // Auditor review controls — only render when the screen is in
             // review mode AND the parent has wired an onReview callback.
@@ -391,53 +349,6 @@ class _LabelValueWidget extends StatelessWidget {
   }
 }
 
-/// Labelled evidence row shared by edit + read-only modes. Wraps the
-/// generic [EvidenceGallery] with the same field-label chrome as the
-/// inputs above it so the section reads as part of the form rather than
-/// a floating widget.
-class _EvidenceSection extends StatelessWidget {
-  const _EvidenceSection({
-    required this.imagePaths,
-    required this.isReadOnly,
-    required this.onAddPhoto,
-    required this.onRemovePhoto,
-  });
-
-  final List<String> imagePaths;
-  final bool isReadOnly;
-  final VoidCallback? onAddPhoto;
-  final ValueChanged<int>? onRemovePhoto;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.image_outlined, size: 13, color: AppColors.textMuted),
-            const SizedBox(width: 5),
-            Text(
-              'Evidence photos',
-              style: AppTextStyles.medium12.copyWith(
-                color: AppColors.textSecondary,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        EvidenceGallery(
-          imagePaths: imagePaths,
-          isReadOnly: isReadOnly,
-          onAddTap: onAddPhoto,
-          onRemove: onRemovePhoto,
-        ),
-      ],
-    );
-  }
-}
-
 /// Owner / Admin edit form. Replaces the previous fixed-aspect GridView with
 /// IntrinsicHeight rows so each cell hugs its actual content height — no
 /// more 200-pixel blank gaps.
@@ -450,6 +361,7 @@ class _EditFields extends StatelessWidget {
     required this.correctiveController,
     required this.personController,
     required this.dueDateController,
+    required this.personSuggestions,
     required this.onChanged,
   });
 
@@ -460,6 +372,7 @@ class _EditFields extends StatelessWidget {
   final TextEditingController correctiveController;
   final TextEditingController personController;
   final TextEditingController dueDateController;
+  final List<String> personSuggestions;
   final ValueChanged<ActionItemModel> onChanged;
 
   @override
@@ -476,13 +389,10 @@ class _EditFields extends StatelessWidget {
       onChanged: (value) =>
           onChanged(item.copyWith(correctiveAction: value)),
     );
-    final person = AppInput(
-      label: 'Responsible person',
+    final person = _PersonAutocomplete(
       controller: personController,
-      dense: true,
-      validator: hasValidationError
-          ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
-          : null,
+      suggestions: personSuggestions,
+      hasValidationError: hasValidationError,
       onChanged: (value) =>
           onChanged(item.copyWith(responsiblePerson: value)),
     );
@@ -566,114 +476,169 @@ class _EditFields extends StatelessWidget {
   }
 }
 
-/// Small read-only thumbnail of the photo the auditor captured for this fail
-/// point. Tap to open full-screen. Picks `Image.network` for http(s)/blob:
-/// URLs (server photos + web picker previews) and `Image.file` otherwise.
-class _AuditPhotoThumb extends StatelessWidget {
-  const _AuditPhotoThumb({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Audit photo',
-          style: AppTextStyles.medium12.copyWith(
-            color: AppColors.textSecondary,
-            letterSpacing: 0.3,
-          ),
-        ),
-        const SizedBox(height: 6),
-        InkWell(
-          onTap: () => _openFullScreen(context),
-          borderRadius: BorderRadius.circular(8),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: _thumb(width: 96, height: 80, fit: BoxFit.cover),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _thumb({
-    required double width,
-    required double height,
-    required BoxFit fit,
-  }) {
-    if (kIsWeb || url.startsWith('http') || url.startsWith('blob:')) {
-      return Image.network(url, width: width, height: height, fit: fit);
-    }
-    return Image.file(File(url), width: width, height: height, fit: fit);
-  }
-
-  void _openFullScreen(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.black,
-        insetPadding: const EdgeInsets.all(12),
-        child: Stack(
-          children: [
-            InteractiveViewer(
-              child: Center(
-                child: _thumb(width: 800, height: 800, fit: BoxFit.contain),
-              ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// Surfaces the auditor's original observation note (captured on the audit
 /// sheet against the failed parameter) so the owner can frame the corrective
 /// action without flipping back to the audit. Distinct from
 /// [_AuditorRemarkBlock], which carries the auditor's review remark.
+/// Typeahead-backed "Responsible person" field. Behaves like the regular
+/// [AppInput] when there are no suggestions or the user types something not
+/// in the list — i.e., free text is always allowed. When the typed prefix
+/// matches one or more entries in [suggestions], an overlay shows the top
+/// matches so the owner can pick instead of typing the full name.
+///
+/// Stateful so the [FocusNode] handed to [RawAutocomplete] survives the
+/// parent's rebuilds — handing it a fresh node every build broke focus
+/// tracking and made the overlay never appear.
+class _PersonAutocomplete extends StatefulWidget {
+  const _PersonAutocomplete({
+    required this.controller,
+    required this.suggestions,
+    required this.hasValidationError,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final List<String> suggestions;
+  final bool hasValidationError;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_PersonAutocomplete> createState() => _PersonAutocompleteState();
+}
+
+class _PersonAutocompleteState extends State<_PersonAutocomplete> {
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RawAutocomplete<String>(
+      textEditingController: widget.controller,
+      focusNode: _focusNode,
+      optionsBuilder: (value) {
+        final query = value.text.trim().toLowerCase();
+        if (query.isEmpty) return widget.suggestions.take(8);
+        return widget.suggestions
+            .where((s) => s.toLowerCase().contains(query))
+            .take(8);
+      },
+      fieldViewBuilder: (ctx, textController, focusNode, onSubmitted) {
+        return AppInput(
+          label: 'Responsible person',
+          hint: widget.suggestions.isEmpty
+              ? 'Type the name'
+              : 'Search or pick from the list',
+          controller: textController,
+          focusNode: focusNode,
+          dense: true,
+          // Real "open dropdown" affordance — clears the existing text
+          // (typically the "TBD" placeholder) and re-focuses the field so
+          // the autocomplete overlay opens with the full suggestion list
+          // instead of zero results from a stale prefix.
+          suffixIcon: widget.suggestions.isEmpty
+              ? null
+              : Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      textController.clear();
+                      widget.onChanged('');
+                      focusNode.requestFocus();
+                    },
+                    customBorder: const CircleBorder(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.arrow_drop_down_rounded, size: 22),
+                    ),
+                  ),
+                ),
+          validator: widget.hasValidationError
+              ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
+              : null,
+          onChanged: widget.onChanged,
+          onSubmitted: (_) => onSubmitted(),
+        );
+      },
+      optionsViewBuilder: (ctx, onSelected, options) {
+        // Match the field's width so the overlay doesn't extend past the
+        // form column on narrow viewports.
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220, maxWidth: 360),
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: options.length,
+                itemBuilder: (_, i) {
+                  final option = options.elementAt(i);
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.person_outline, size: 18),
+                    title: Text(option, style: AppTextStyles.body13),
+                    onTap: () => onSelected(option),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _AuditObservationBlock extends StatelessWidget {
   const _AuditObservationBlock({required this.observation});
 
+  /// Empty string when the auditor didn't write an observation. The widget
+  /// renders a muted "Auditor didn't share an observation" placeholder so
+  /// the absence is visible rather than the block silently disappearing.
   final String observation;
 
   @override
   Widget build(BuildContext context) {
+    final hasObservation = observation.trim().isNotEmpty;
+    final tone = hasObservation ? AppColors.primary : AppColors.textMuted;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.blueTint,
+        color: hasObservation ? AppColors.blueTint : AppColors.surface2,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.28)),
+        border: Border.all(color: tone.withValues(alpha: 0.28)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.assignment_outlined,
-                  size: 14, color: AppColors.primary),
+              Icon(Icons.assignment_outlined, size: 14, color: tone),
               const SizedBox(width: 6),
               Text(
                 'Auditor observation',
-                style:
-                    AppTextStyles.medium12.copyWith(color: AppColors.primary),
+                style: AppTextStyles.medium12.copyWith(color: tone),
               ),
             ],
           ),
           const SizedBox(height: 2),
-          Text(observation, style: AppTextStyles.body13),
+          Text(
+            hasObservation
+                ? observation
+                : 'Auditor didn\'t share an observation for this fail point.',
+            style: AppTextStyles.body13.copyWith(
+              color: hasObservation ? null : AppColors.textSecondary,
+              fontStyle: hasObservation ? null : FontStyle.italic,
+            ),
+          ),
         ],
       ),
     );

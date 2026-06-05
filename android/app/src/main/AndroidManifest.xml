@@ -9,7 +9,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
-        android:label="audit_management_app_frontend"
+        android:label="Vistar Audit"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
