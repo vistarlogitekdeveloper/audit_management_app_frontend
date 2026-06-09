@@ -150,11 +150,18 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
           else ...[
             ...displayOrder.map((index) {
               final item = provider.items[index];
+              // Auditor approval locks the item from further owner/admin
+              // edits — only the auditor can revisit it via review
+              // controls. Cluster manager is already readOnly via [mode].
+              final itemMode = effectiveMode == ActionItemMode.edit &&
+                      item.reviewStatus == 'approved'
+                  ? ActionItemMode.readOnly
+                  : effectiveMode;
               return ActionItemWidget(
                 key: ValueKey(item.id ?? 'new-$index'),
                 item: item,
                 deadline: deadline,
-                mode: effectiveMode,
+                mode: itemMode,
                 reviewing: provider.isReviewing,
                 responsiblePersonSuggestions: responsiblePersonSuggestions,
                 auditObservation: item.auditObservation.isNotEmpty

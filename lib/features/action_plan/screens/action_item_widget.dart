@@ -122,6 +122,14 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
                   widget.item.auditorRemark.isNotEmpty,
             ),
             const SizedBox(height: 8),
+            // Once the auditor approves an item the owner / cluster manager
+            // can no longer edit it. Surface that lock explicitly so the
+            // grayed-out fields aren't read as "broken". Auditor stays in
+            // review mode, so we don't show this for them.
+            if (widget.item.reviewStatus == 'approved' && !_isReview) ...[
+              const _ApprovedLockBanner(),
+              const SizedBox(height: 8),
+            ],
             _AuditObservationBlock(
               observation: (widget.auditObservation ?? '').trim(),
             ),
@@ -623,6 +631,38 @@ class _AuditObservationBlock extends StatelessWidget {
   }
 }
 
+/// Green "locked from edits" banner shown on items the auditor has
+/// already approved. Renders for the project owner / admin / cluster
+/// manager — auditors keep their review controls and don't see this.
+class _ApprovedLockBanner extends StatelessWidget {
+  const _ApprovedLockBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.greenTint,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.32)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, size: 14, color: AppColors.success),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Approved by auditor — locked from further edits.',
+              style: AppTextStyles.medium12.copyWith(color: AppColors.success),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AuditorRemarkBlock extends StatelessWidget {
   const _AuditorRemarkBlock({
     required this.remark,
@@ -639,8 +679,17 @@ class _AuditorRemarkBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isRejected = status == 'rejected';
-    final tint = isRejected ? AppColors.redTint : AppColors.amberTint;
-    final fg = isRejected ? AppColors.danger : AppColors.warning;
+    final isApproved = status == 'approved';
+    final tint = isRejected
+        ? AppColors.redTint
+        : isApproved
+            ? AppColors.greenTint
+            : AppColors.amberTint;
+    final fg = isRejected
+        ? AppColors.danger
+        : isApproved
+            ? AppColors.success
+            : AppColors.warning;
 
     final meta = StringBuffer();
     if (reviewer != null && reviewer!.isNotEmpty) meta.write(reviewer);
@@ -665,13 +714,19 @@ class _AuditorRemarkBlock extends StatelessWidget {
               Icon(
                 isRejected
                     ? Icons.report_gmailerrorred_rounded
-                    : Icons.rate_review_outlined,
+                    : isApproved
+                        ? Icons.check_circle_outline
+                        : Icons.rate_review_outlined,
                 size: 14,
                 color: fg,
               ),
               const SizedBox(width: 6),
               Text(
-                isRejected ? 'Auditor rejected' : 'Auditor remark',
+                isRejected
+                    ? 'Auditor rejected'
+                    : isApproved
+                        ? 'Auditor approved'
+                        : 'Auditor remark',
                 style: AppTextStyles.medium12.copyWith(color: fg),
               ),
               if (meta.isNotEmpty) ...[
