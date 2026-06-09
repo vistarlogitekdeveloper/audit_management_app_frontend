@@ -1,11 +1,8 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
@@ -14,7 +11,6 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_dialog.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
-import '../../../core/services/image_service.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../providers/audit_sheet_provider.dart';
 import 'audit_sheet_row_widget.dart';
@@ -224,12 +220,6 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                               parameterName: parameter.name,
                               selectedResult: row?.result,
                               remarkController: controller,
-                              imagePaths: row?.imagePaths ?? const [],
-                              onImageRemoved: (photoIndex) {
-                                ref
-                                    .read(auditSheetProvider)
-                                    .removeImageAt(parameter.index, photoIndex);
-                              },
                               showValidation: _showValidation,
                               isReadOnly: isAcknowledged,
                               onResultChanged: (result) {
@@ -243,75 +233,6 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                                     .read(auditSheetProvider)
                                     .setRemark(parameter.index, remark);
                                 _scheduleAutoSave();
-                              },
-                              onImagePicked: (source) async {
-                                // Picking a photo is now local-only: it's
-                                // staged in the provider and uploaded as a
-                                // batch when the auditor taps Submit. That
-                                // keeps the picker responsive, lets the
-                                // auditor add/remove photos freely with no
-                                // per-tap network round trips, and makes
-                                // iterating on the photo UI possible
-                                // without a working backend.
-                                final picker = ImagePicker();
-                                final file = await picker.pickImage(
-                                  source: source == ImageSourceType.camera
-                                      ? ImageSource.camera
-                                      : ImageSource.gallery,
-                                  // Light pre-compress on web (where our
-                                  // native-only ImageService can't run) to
-                                  // give the file a better chance under the
-                                  // backend's 500 KB cap.
-                                  imageQuality: kIsWeb ? 75 : null,
-                                  maxWidth: kIsWeb ? 1600 : null,
-                                );
-                                if (file == null) return;
-                                final provider =
-                                    ref.read(auditSheetProvider);
-
-                                if (kIsWeb) {
-                                  final bytes = await file.readAsBytes();
-                                  if (bytes.length >
-                                      AppConstants.maxImageSizeBytes) {
-                                    // Show what they picked but keep it out
-                                    // of the upload queue — the × badge lets
-                                    // them clear it and try again.
-                                    provider.addImage(
-                                        parameter.index, file.path);
-                                    if (!context.mounted) return;
-                                    AppHelpers.showErrorSnackbar(
-                                      context,
-                                      'Image is too large (over 500 KB). '
-                                      'Please remove and pick a smaller photo.',
-                                    );
-                                    return;
-                                  }
-                                  provider.stagePhotoFromBytes(
-                                    index: parameter.index,
-                                    previewPath: file.path,
-                                    bytes: bytes,
-                                    filename: file.name,
-                                  );
-                                  return;
-                                }
-
-                                String compressed;
-                                try {
-                                  compressed = await ImageService()
-                                      .compressToMax500Kb(file.path);
-                                } on OversizedImageException catch (e) {
-                                  // Can't get under the backend's 500 KB
-                                  // cap — keep as preview-only so the
-                                  // auditor can see what they chose, but
-                                  // don't queue it for upload.
-                                  provider.addImage(parameter.index, file.path);
-                                  if (!context.mounted) return;
-                                  AppHelpers.showErrorSnackbar(
-                                      context, e.message);
-                                  return;
-                                }
-                                provider.stagePhotoFromPath(
-                                    parameter.index, compressed);
                               },
                             );
                           }).toList(),

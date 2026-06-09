@@ -63,23 +63,6 @@ class ActionPlanProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Validates that every item has a corrective action, responsible person,
-  /// audit parameter id, and a due date within [planDeadline].
-  /// Returns the indices that failed validation.
-  List<int> validate({DateTime? planDeadline}) {
-    final invalid = <int>[];
-    for (var i = 0; i < items.length; i++) {
-      final item = items[i];
-      final missingText = item.correctiveAction.trim().isEmpty ||
-          item.responsiblePerson.trim().isEmpty;
-      final missingFk = item.auditParameterId.isEmpty;
-      final overDeadline = planDeadline != null &&
-          item.dueDate.isAfter(planDeadline.add(const Duration(days: 1)));
-      if (missingText || missingFk || overDeadline) invalid.add(i);
-    }
-    return invalid;
-  }
-
   Future<void> save() async {
     final plan = currentPlan;
     if (plan == null || plan.id.isEmpty) {

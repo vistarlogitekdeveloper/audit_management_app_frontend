@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:audit_management_app_frontend/features/audit_sheet/models/audit_parameter_model.dart';
 import 'package:audit_management_app_frontend/features/audit_sheet/models/audit_sheet_model.dart';
@@ -29,33 +28,6 @@ class _FakeAuditSheetService implements AuditSheetService {
   Completer<AuditSheetModel>? updateGate;
 
   int submitCalls = 0;
-
-  int uploadCalls = 0;
-  bool uploadThrows = false;
-  String? uploadReturnUrl;
-
-  @override
-  Future<String?> uploadParameterImage({
-    required String auditId,
-    required int paramIndex,
-    required String filePath,
-  }) async {
-    uploadCalls++;
-    if (uploadThrows) throw Exception('upload failed');
-    return uploadReturnUrl;
-  }
-
-  @override
-  Future<String?> uploadParameterImageBytes({
-    required String auditId,
-    required int paramIndex,
-    required Uint8List bytes,
-    required String filename,
-  }) async {
-    uploadCalls++;
-    if (uploadThrows) throw Exception('upload failed');
-    return uploadReturnUrl;
-  }
 
   @override
   Future<AuditSheetModel?> getSheet(String auditId) async {
@@ -198,47 +170,6 @@ void main() {
       expect(service.updateCalls, 1);
       expect(service.submitCalls, 1);
       expect(provider.actionError, isNull);
-    });
-  });
-
-  group('uploadImage (#2 photo evidence)', () {
-    test('optimistic local preview, then swaps to the server URL', () async {
-      final service = _FakeAuditSheetService()
-        ..uploadReturnUrl = 'https://cdn.example/p1.jpg';
-      final provider = AuditSheetProvider(service);
-      await provider.loadSheet('A');
-
-      final ok = await provider.uploadImage(1, '/tmp/local.jpg');
-
-      expect(ok, isTrue);
-      expect(service.uploadCalls, 1);
-      // A loadable (http) URL replaces the local path.
-      expect(provider.rowStates[1]!.imagePath, 'https://cdn.example/p1.jpg');
-      expect(provider.actionError, isNull);
-    });
-
-    test('keeps local preview when server returns no loadable URL', () async {
-      final service = _FakeAuditSheetService()..uploadReturnUrl = null;
-      final provider = AuditSheetProvider(service);
-      await provider.loadSheet('A');
-
-      final ok = await provider.uploadImage(2, '/tmp/local2.jpg');
-
-      expect(ok, isTrue);
-      // Raw s3:// isn't renderable, so the local file stays for this session.
-      expect(provider.rowStates[2]!.imagePath, '/tmp/local2.jpg');
-    });
-
-    test('failure keeps local preview and records actionError', () async {
-      final service = _FakeAuditSheetService()..uploadThrows = true;
-      final provider = AuditSheetProvider(service);
-      await provider.loadSheet('A');
-
-      final ok = await provider.uploadImage(3, '/tmp/local3.jpg');
-
-      expect(ok, isFalse);
-      expect(provider.rowStates[3]!.imagePath, '/tmp/local3.jpg');
-      expect(provider.actionError, isNotNull);
     });
   });
 }

@@ -162,7 +162,6 @@ class _AuditReportScreenState extends ConsumerState<AuditReportScreen> {
                 DataColumn(label: Text('Parameter')),
                 DataColumn(label: Text('Result')),
                 DataColumn(label: Text('Remark')),
-                DataColumn(label: Text('Evidence')),
               ],
               rows: report.parameters.map((item) {
                 return DataRow(
@@ -171,11 +170,6 @@ class _AuditReportScreenState extends ConsumerState<AuditReportScreen> {
                     DataCell(SizedBox(width: 260, child: Text(item.name))),
                     DataCell(StatusPill(status: item.result ?? 'NA')),
                     DataCell(SizedBox(width: 280, child: Text(item.remark))),
-                    DataCell(
-                      item.imageUrl == null
-                          ? Text('-', style: AppTextStyles.body12)
-                          : const Icon(Icons.image_outlined),
-                    ),
                   ],
                 );
               }).toList(),

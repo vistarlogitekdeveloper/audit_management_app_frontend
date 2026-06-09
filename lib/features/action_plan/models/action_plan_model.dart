@@ -111,6 +111,7 @@ class ActionItemModel {
     required this.responsiblePerson,
     required this.dueDate,
     required this.status,
+    this.auditObservation = '',
     this.auditorRemark = '',
     this.reviewStatus = 'pending',
     this.reviewedBy,
@@ -130,6 +131,14 @@ class ActionItemModel {
 
   /// Title-Case for the dropdown UI ("Open" / "In Progress" / "Closed").
   final String status;
+
+  /// The auditor's original observation from the audit sheet (the `remark`
+  /// they typed against this parameter when scoring it fail). Lives at
+  /// `parameter.remark` on the API response. Distinct from [auditorRemark],
+  /// which is the auditor's later note when *reviewing* the owner's
+  /// corrective action. Surfaced on the Action Plan screen so the owner
+  /// sees what the auditor flagged without having to open the audit sheet.
+  final String auditObservation;
 
   /// Free-form note left by the auditor when reviewing the item. Required
   /// when the auditor rejects; optional when approved.
@@ -157,6 +166,7 @@ class ActionItemModel {
     String? responsiblePerson,
     DateTime? dueDate,
     String? status,
+    String? auditObservation,
     String? auditorRemark,
     String? reviewStatus,
     ReviewerRef? reviewedBy,
@@ -170,6 +180,7 @@ class ActionItemModel {
       responsiblePerson: responsiblePerson ?? this.responsiblePerson,
       dueDate: dueDate ?? this.dueDate,
       status: status ?? this.status,
+      auditObservation: auditObservation ?? this.auditObservation,
       auditorRemark: auditorRemark ?? this.auditorRemark,
       reviewStatus: reviewStatus ?? this.reviewStatus,
       reviewedBy: reviewedBy ?? this.reviewedBy,
@@ -206,6 +217,7 @@ class ActionItemModel {
       status: _statusToDisplay(
         json['status']?.toString() ?? 'open',
       ),
+      auditObservation: parameter?['remark']?.toString() ?? '',
       auditorRemark: json['auditor_remark']?.toString() ??
           json['auditorRemark']?.toString() ??
           '',

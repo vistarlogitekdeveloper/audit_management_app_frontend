@@ -22,7 +22,6 @@ class ActionItemWidget extends StatefulWidget {
     required this.item,
     required this.onChanged,
     required this.deadline,
-    this.hasValidationError = false,
     this.mode = ActionItemMode.edit,
     this.onReview,
     this.reviewing = false,
@@ -35,9 +34,6 @@ class ActionItemWidget extends StatefulWidget {
 
   /// Latest acceptable due date (audit_date + 8 days) for any item.
   final DateTime deadline;
-
-  /// When true, missing/invalid fields are highlighted in red.
-  final bool hasValidationError;
 
   /// Controls which inputs / buttons render (see [ActionItemMode]).
   final ActionItemMode mode;
@@ -124,7 +120,6 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
               reviewStatus: widget.item.reviewStatus,
               showPill: widget.item.reviewStatus != 'pending' ||
                   widget.item.auditorRemark.isNotEmpty,
-              hasValidationError: widget.hasValidationError,
             ),
             const SizedBox(height: 8),
             _AuditObservationBlock(
@@ -145,7 +140,6 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
                 item: widget.item,
                 deadline: widget.deadline,
                 overDeadline: overDeadline,
-                hasValidationError: widget.hasValidationError,
                 correctiveController: _correctiveController,
                 personController: _personController,
                 dueDateController: _dueDateController,
@@ -193,13 +187,11 @@ class _Banner extends StatelessWidget {
     required this.parameterName,
     required this.reviewStatus,
     required this.showPill,
-    required this.hasValidationError,
   });
 
   final String parameterName;
   final String reviewStatus;
   final bool showPill;
-  final bool hasValidationError;
 
   @override
   Widget build(BuildContext context) {
@@ -209,9 +201,6 @@ class _Banner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.redTint,
         borderRadius: BorderRadius.circular(8),
-        border: hasValidationError
-            ? Border.all(color: AppColors.danger, width: 1.4)
-            : null,
       ),
       child: Row(
         children: [
@@ -357,7 +346,6 @@ class _EditFields extends StatelessWidget {
     required this.item,
     required this.deadline,
     required this.overDeadline,
-    required this.hasValidationError,
     required this.correctiveController,
     required this.personController,
     required this.dueDateController,
@@ -368,7 +356,6 @@ class _EditFields extends StatelessWidget {
   final ActionItemModel item;
   final DateTime deadline;
   final bool overDeadline;
-  final bool hasValidationError;
   final TextEditingController correctiveController;
   final TextEditingController personController;
   final TextEditingController dueDateController;
@@ -383,16 +370,12 @@ class _EditFields extends StatelessWidget {
       label: 'Corrective action',
       controller: correctiveController,
       dense: true,
-      validator: hasValidationError
-          ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
-          : null,
       onChanged: (value) =>
           onChanged(item.copyWith(correctiveAction: value)),
     );
     final person = _PersonAutocomplete(
       controller: personController,
       suggestions: personSuggestions,
-      hasValidationError: hasValidationError,
       onChanged: (value) =>
           onChanged(item.copyWith(responsiblePerson: value)),
     );
@@ -493,13 +476,11 @@ class _PersonAutocomplete extends StatefulWidget {
   const _PersonAutocomplete({
     required this.controller,
     required this.suggestions,
-    required this.hasValidationError,
     required this.onChanged,
   });
 
   final TextEditingController controller;
   final List<String> suggestions;
-  final bool hasValidationError;
   final ValueChanged<String> onChanged;
 
   @override
@@ -557,9 +538,6 @@ class _PersonAutocompleteState extends State<_PersonAutocomplete> {
                     ),
                   ),
                 ),
-          validator: widget.hasValidationError
-              ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
-              : null,
           onChanged: widget.onChanged,
           onSubmitted: (_) => onSubmitted(),
         );

@@ -1,27 +1,8 @@
-import 'dart:typed_data';
-
-import 'package:http_parser/http_parser.dart';
-
 import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/api_service.dart';
 import '../models/audit_parameter_model.dart';
 import '../models/audit_sheet_model.dart';
-
-/// Picks a `MediaType` for an evidence upload based on the filename
-/// extension. Defaults to `image/jpeg` because (a) it's what the picker
-/// hands back in the vast majority of cases and (b) it's what the backend
-/// expects when the filename is missing entirely. multer's fileFilter
-/// rejects parts with no Content-Type, surfacing as "Image is required".
-MediaType _imageMediaTypeFor(String filename) {
-  final lower = filename.toLowerCase();
-  if (lower.endsWith('.png')) return MediaType('image', 'png');
-  if (lower.endsWith('.gif')) return MediaType('image', 'gif');
-  if (lower.endsWith('.webp')) return MediaType('image', 'webp');
-  if (lower.endsWith('.heic')) return MediaType('image', 'heic');
-  if (lower.endsWith('.heif')) return MediaType('image', 'heif');
-  return MediaType('image', 'jpeg');
-}
 
 class AcknowledgeResult {
   const AcknowledgeResult({required this.hasFailPoints, this.actionPlanId});
@@ -83,79 +64,6 @@ class AuditSheetService {
     await _apiService.post(ApiConstants.submitAuditSheet(auditId));
   }
 
-  /// Uploads a photo for one parameter (one image per parameter; re-uploading
-  /// overwrites it server-side). [auditId] is the audit-plan id. Returns a
-  /// browser-loadable (http) URL when the backend provides one (presigned),
-  /// otherwise `null` — the upload still succeeded, but the raw `s3://` URI
-  /// can't be rendered, so the caller keeps the local preview for now.
-  ///
-  /// Routed through `ApiService.uploadMultipart` (package:http) rather than
-  /// dio: dio's BrowserHttpClientAdapter mangles the multipart body on
-  /// Flutter web and the backend responds "Image is required" even though
-  /// the bytes are on the wire. The http path uses the browser's native
-  /// FormData wiring on web and works the same on native.
-  Future<String?> uploadParameterImage({
-    required String auditId,
-    required int paramIndex,
-    required String filePath,
-  }) async {
-    final basename =
-        filePath.split(RegExp(r'[\\/]')).last.split('?').first;
-    final filename = basename.isEmpty ? 'photo.jpg' : basename;
-    final response = await _apiService.uploadMultipart(
-      ApiConstants.uploadAuditSheetImage(auditId),
-      fileFieldName: 'image',
-      filePath: filePath,
-      filename: filename,
-      contentType: _imageMediaTypeFor(filename),
-      extraFields: {'param_index': paramIndex.toString()},
-    );
-    return _presignedUrlFrom(response);
-  }
-
-  /// Bytes variant of [uploadParameterImage] for Flutter web, where
-  /// `dart:io` File and `path_provider` aren't available so a file-path
-  /// upload can't be used. Otherwise identical — same endpoint, same
-  /// response handling.
-  Future<String?> uploadParameterImageBytes({
-    required String auditId,
-    required int paramIndex,
-    required Uint8List bytes,
-    required String filename,
-  }) async {
-    // Some web pickers hand back `XFile.name = ""` (camera captures, certain
-    // browsers). multer treats a part with an empty filename as a plain
-    // field and the backend responds "Image is required" — fall back to a
-    // sensible name + explicit image Content-Type so the part is recognised.
-    final safeName = filename.isEmpty ? 'photo.jpg' : filename;
-    final response = await _apiService.uploadMultipart(
-      ApiConstants.uploadAuditSheetImage(auditId),
-      fileFieldName: 'image',
-      bytes: bytes,
-      filename: safeName,
-      contentType: _imageMediaTypeFor(safeName),
-      extraFields: {'param_index': paramIndex.toString()},
-    );
-    return _presignedUrlFrom(response);
-  }
-
-  /// Pulls the first browser-loadable (http) URL out of an upload response.
-  /// Returns null when only an internal `s3://` URI is present — the upload
-  /// still succeeded; the caller keeps the local preview for now.
-  String? _presignedUrlFrom(Map<String, dynamic> response) {
-    final data = _apiService.extractObject(response);
-    for (final key in const [
-      'presigned_url',
-      'signed_url',
-      'url',
-      'image_url',
-    ]) {
-      final value = data[key]?.toString();
-      if (value != null && value.startsWith('http')) return value;
-    }
-    return null;
-  }
-
   Future<AcknowledgeResult> acknowledgeSheet(
     String auditId,
     String ownerRemarks,
@@ -171,7 +79,6 @@ class AuditSheetService {
     );
   }
 
-  // Result returned by /api/audit-sheets/:id/acknowledge.
   AuditSheetModel emptyTemplate({
     required String auditId,
     required String projectName,

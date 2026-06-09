@@ -40,8 +40,6 @@ class ApiConstants {
   // Audit Sheets
   static String auditSheet(String auditPlanId) =>
       '/audit-sheets/$auditPlanId';
-  static String uploadAuditSheetImage(String id) =>
-      '/audit-sheets/$id/upload-image';
   static String submitAuditSheet(String id) => '/audit-sheets/$id/submit';
   static String acknowledgeAuditSheet(String id) =>
       '/audit-sheets/$id/acknowledge';

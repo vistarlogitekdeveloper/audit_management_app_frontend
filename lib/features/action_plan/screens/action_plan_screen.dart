@@ -29,8 +29,6 @@ class ActionPlanScreen extends ConsumerStatefulWidget {
 }
 
 class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
-  bool _showValidation = false;
-
   @override
   void initState() {
     super.initState();
@@ -106,10 +104,11 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
         .where((u) => u.isActive && u.name.trim().isNotEmpty)
         .map((u) => u.name)
         .toList();
-    // Same trick for the auditor's observation note. The fallback path stores
-    // it on `auditorRemark` for unsaved items, but once the backend saves the
-    // plan that field is reused for the *review* remark, so we read the
-    // original observation straight from the audit sheet every render.
+    // Map of parameter name → auditor observation. Only used as a fallback
+    // for unsaved items where the backend's `parameter.remark` isn't on the
+    // model yet — once persisted, every item carries [auditObservation]
+    // directly so the owner sees the auditor's note without having to open
+    // the audit sheet first.
     final observationByName = <String, String>{
       for (final p in sheet?.parameters ?? const [])
         if (p.remark.trim().isNotEmpty) p.name: p.remark.trim(),
@@ -117,9 +116,6 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
 
     final auditDate = sheet?.auditDate ?? DateTime.now();
     final deadline = plan?.dueDate ?? AppDateUtils.actionPlanDeadline(auditDate);
-    final invalidIndices = _showValidation && isEditor
-        ? provider.validate(planDeadline: deadline)
-        : <int>[];
 
     // Render items in the same top-to-bottom sequence as the audit sheet
     // (the 24-parameter list in AppConstants). The backend returns items in
@@ -158,15 +154,16 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
                 key: ValueKey(item.id ?? 'new-$index'),
                 item: item,
                 deadline: deadline,
-                hasValidationError: invalidIndices.contains(index),
                 mode: effectiveMode,
                 reviewing: provider.isReviewing,
                 responsiblePersonSuggestions: responsiblePersonSuggestions,
-                auditObservation: observationByName[item.parameterName] ??
-                    (item.auditorRemark.isNotEmpty &&
-                            item.reviewStatus == 'pending'
-                        ? item.auditorRemark
-                        : null),
+                auditObservation: item.auditObservation.isNotEmpty
+                    ? item.auditObservation
+                    : observationByName[item.parameterName] ??
+                        (item.auditorRemark.isNotEmpty &&
+                                item.reviewStatus == 'pending'
+                            ? item.auditorRemark
+                            : null),
                 onChanged: (updated) =>
                     ref.read(actionPlanProvider).updateItem(index, updated),
                 onReview: isAuditor && !planClosed
@@ -281,15 +278,6 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
       AppHelpers.showErrorSnackbar(
         context,
         'Action plan not yet created. Acknowledge the audit first.',
-      );
-      return;
-    }
-    setState(() => _showValidation = true);
-    final invalid = provider.validate(planDeadline: plan.dueDate);
-    if (invalid.isNotEmpty) {
-      AppHelpers.showErrorSnackbar(
-        context,
-        'Please complete every fail point. Due dates must be within ${AppDateUtils.formatDisplay(plan.dueDate)}.',
       );
       return;
     }

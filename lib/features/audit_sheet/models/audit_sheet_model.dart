@@ -119,32 +119,18 @@ class AuditRowState {
   const AuditRowState({
     this.result,
     this.remark = '',
-    this.imagePaths = const [],
   });
 
   final String? result;
   final String remark;
 
-  /// All photos for this row, in upload order. The backend currently stores
-  /// only the most recent upload per parameter (re-uploads overwrite), so on
-  /// reload only one image comes back. Within a session the auditor can stage
-  /// several locally — extra entries are uploaded one by one and the latest
-  /// is what the server keeps until the backend supports multiple images.
-  final List<String> imagePaths;
-
-  /// Convenience accessor for callers that still expect a single photo —
-  /// returns the most recent path (the one the server will have).
-  String? get imagePath => imagePaths.isEmpty ? null : imagePaths.last;
-
   AuditRowState copyWith({
     String? result,
     String? remark,
-    List<String>? imagePaths,
   }) {
     return AuditRowState(
       result: result ?? this.result,
       remark: remark ?? this.remark,
-      imagePaths: imagePaths ?? this.imagePaths,
     );
   }
 
@@ -153,6 +139,5 @@ class AuditRowState {
     'name': parameterName,
     'result': result,
     'remark': remark,
-    'imageUrl': imagePath,
   };
 }

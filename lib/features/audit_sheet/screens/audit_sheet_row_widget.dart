@@ -1,12 +1,8 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/widgets/app_sheet_header.dart';
 import '../../../core/widgets/status_pill.dart';
 
 class AuditRowWidget extends StatefulWidget {
@@ -18,9 +14,6 @@ class AuditRowWidget extends StatefulWidget {
     required this.onResultChanged,
     required this.remarkController,
     required this.onRemarkChanged,
-    required this.imagePaths,
-    required this.onImagePicked,
-    required this.onImageRemoved,
     this.showValidation = false,
     this.isReadOnly = false,
   });
@@ -31,13 +24,6 @@ class AuditRowWidget extends StatefulWidget {
   final ValueChanged<String> onResultChanged;
   final TextEditingController remarkController;
   final ValueChanged<String> onRemarkChanged;
-
-  /// All photos staged for this row, in upload order. Empty means none yet.
-  final List<String> imagePaths;
-  final ValueChanged<ImageSourceType> onImagePicked;
-
-  /// Callback for the × badge — receives the index into [imagePaths].
-  final ValueChanged<int> onImageRemoved;
   final bool showValidation;
   final bool isReadOnly;
 
@@ -46,10 +32,6 @@ class AuditRowWidget extends StatefulWidget {
 }
 
 class _AuditRowWidgetState extends State<AuditRowWidget> {
-  // Anchors the desktop popup menu directly under the evidence button so the
-  // picker doesn't fly to the bottom of the screen on a wide viewport.
-  final GlobalKey _evidenceKey = GlobalKey();
-
   bool get _answered => widget.selectedResult != null;
 
   bool get _remarkMissing => widget.remarkController.text.trim().isEmpty;
@@ -193,19 +175,6 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
                         : null,
                   ),
                 ),
-                const SizedBox(height: 14),
-                const _FieldLabel(
-                  icon: Icons.image_outlined,
-                  label: 'Evidence photo',
-                ),
-                const SizedBox(height: 6),
-                _EvidenceControl(
-                  key: _evidenceKey,
-                  imagePaths: widget.imagePaths,
-                  isReadOnly: widget.isReadOnly,
-                  onAddTap: widget.isReadOnly ? null : _pickPhoto,
-                  onRemove: widget.isReadOnly ? null : widget.onImageRemoved,
-                ),
                 if (widget.selectedResult != null) ...[
                   const SizedBox(height: 10),
                   Align(
@@ -218,90 +187,6 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
           ),
         ],
       ),
-    );
-  }
-
-  Future<void> _pickPhoto() async {
-    // On phones a modal bottom sheet is the natural pattern. On a desktop /
-    // wide viewport that sheet slides up from the screen bottom, far from
-    // the row's button — anchor a popup menu directly under the button
-    // instead so the choice appears right where you tapped.
-    final isCompact = MediaQuery.sizeOf(context).width < 600;
-    final source = isCompact
-        ? await _pickFromBottomSheet()
-        : await _pickFromAnchoredMenu();
-    if (source != null) widget.onImagePicked(source);
-  }
-
-  Future<ImageSourceType?> _pickFromBottomSheet() {
-    return showModalBottomSheet<ImageSourceType>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 4, 0),
-              child: AppSheetHeader(title: 'Add photo'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take Photo'),
-              onTap: () => Navigator.of(ctx).pop(ImageSourceType.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from Gallery'),
-              onTap: () => Navigator.of(ctx).pop(ImageSourceType.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<ImageSourceType?> _pickFromAnchoredMenu() {
-    final buttonBox =
-        _evidenceKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlayBox =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (buttonBox == null || overlayBox == null) {
-      // Couldn't anchor — fall back so a click never appears broken.
-      return _pickFromBottomSheet();
-    }
-    final topLeft = buttonBox.localToGlobal(Offset.zero, ancestor: overlayBox);
-    final size = buttonBox.size;
-    final position = RelativeRect.fromLTRB(
-      topLeft.dx,
-      topLeft.dy + size.height + 4,
-      overlayBox.size.width - topLeft.dx - size.width,
-      overlayBox.size.height - topLeft.dy - size.height,
-    );
-    return showMenu<ImageSourceType>(
-      context: context,
-      position: position,
-      items: const [
-        PopupMenuItem(
-          value: ImageSourceType.camera,
-          child: Row(
-            children: [
-              Icon(Icons.photo_camera_outlined, size: 18),
-              SizedBox(width: 10),
-              Text('Take Photo'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: ImageSourceType.gallery,
-          child: Row(
-            children: [
-              Icon(Icons.photo_library_outlined, size: 18),
-              SizedBox(width: 10),
-              Text('Choose from Gallery'),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
@@ -372,165 +257,6 @@ class _FieldLabel extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-/// Evidence gallery + "Add photo" button. Renders every staged photo as a
-/// 60×60 thumbnail with a × badge for one-tap removal, and keeps the
-/// "Add" tile visible alongside the thumbnails so more photos can always be
-/// staged regardless of how many already exist.
-class _EvidenceControl extends StatelessWidget {
-  const _EvidenceControl({
-    super.key,
-    required this.imagePaths,
-    required this.isReadOnly,
-    required this.onAddTap,
-    required this.onRemove,
-  });
-
-  final List<String> imagePaths;
-  final bool isReadOnly;
-  final VoidCallback? onAddTap;
-  final ValueChanged<int>? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isReadOnly && imagePaths.isEmpty) {
-      return Row(
-        children: [
-          Icon(Icons.image_not_supported_outlined,
-              size: 18, color: AppColors.textMuted),
-          const SizedBox(width: 6),
-          Text('No evidence', style: AppTextStyles.body12),
-        ],
-      );
-    }
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        for (var i = 0; i < imagePaths.length; i++)
-          _EvidenceThumb(
-            path: imagePaths[i],
-            isReadOnly: isReadOnly,
-            onRemove: onRemove == null ? null : () => onRemove!(i),
-          ),
-        if (!isReadOnly) _AddPhotoTile(onTap: onAddTap),
-      ],
-    );
-  }
-}
-
-/// A single 60×60 evidence thumbnail. When editable, a small × badge floats
-/// at the top-right corner for one-tap removal.
-class _EvidenceThumb extends StatelessWidget {
-  const _EvidenceThumb({
-    required this.path,
-    required this.isReadOnly,
-    required this.onRemove,
-  });
-
-  final String path;
-  final bool isReadOnly;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    // On web the picker hands back a blob: URL (and dart:io File doesn't
-    // exist there at runtime), so Image.file would crash. Always render via
-    // Image.network on web — it handles blob: and http(s) the same way.
-    final thumb = ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: (kIsWeb || path.startsWith('http'))
-          ? Image.network(path, width: 60, height: 60, fit: BoxFit.cover)
-          : Image.file(File(path), width: 60, height: 60, fit: BoxFit.cover),
-    );
-
-    if (isReadOnly || onRemove == null) return thumb;
-
-    // Stack lets the × badge sit half outside the thumbnail so it doesn't
-    // cover the photo content. The extra 8px on width/height makes room.
-    return SizedBox(
-      width: 68,
-      height: 68,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(left: 0, top: 8, child: thumb),
-          Positioned(
-            right: 0,
-            top: 0,
-            child: Tooltip(
-              message: 'Remove photo',
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onRemove,
-                  customBorder: const CircleBorder(),
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: AppColors.danger,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.surface, width: 2),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.close_rounded,
-                        size: 13, color: AppColors.white),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// "Add" tile sized to match the thumbnails (60×60) so it sits inline with
-/// them. Stays visible no matter how many photos are already staged.
-class _AddPhotoTile extends StatelessWidget {
-  const _AddPhotoTile({required this.onTap});
-
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 60,
-        height: 60,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppColors.blueTint,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.36),
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.add_a_photo_outlined,
-                size: 18, color: AppColors.primary),
-            const SizedBox(height: 2),
-            Text(
-              'Add',
-              style: AppTextStyles.body11.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -648,7 +374,7 @@ class _ResultChip extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.medium12.copyWith(
                     color: active ? textColor : AppColors.textSecondary,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: active ? FontWeight.w500 : FontWeight.w500,
                   ),
                 ),
               ),
@@ -659,5 +385,3 @@ class _ResultChip extends StatelessWidget {
     );
   }
 }
-
-enum ImageSourceType { camera, gallery }
