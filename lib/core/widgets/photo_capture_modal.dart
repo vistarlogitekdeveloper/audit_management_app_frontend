@@ -7,12 +7,12 @@ import 'package:image_picker/image_picker.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
-/// Bottom-sheet capture flow:
+/// Compact card-style bottom sheet capture flow:
 ///
-///   1. Open → Camera button OR Gallery/File button.
+///   1. Open → small card with Camera and Gallery action tiles.
 ///   2. Tap Camera → native camera fires (front or rear depending on [front]).
 ///      Tap Gallery → system photo-picker / file dialog.
-///   3. Photo returns → inline preview + Retake / Gallery / Submit buttons.
+///   3. Photo returns → small inline preview + Retake / Submit buttons.
 ///   4. Submit → calls [onSubmit] with bytes + filename + mimeType; modal
 ///      closes with the caller's returned value (non-null) or stays open (null).
 ///
@@ -37,25 +37,17 @@ class PhotoCaptureModal extends StatefulWidget {
   /// True → front camera (selfie). False → rear (document / object).
   final bool front;
 
-  /// Pixel cap for the captured image's longest dimension. Spec says
-  /// 1280 for selfies, 1600 for documents — keeps JPEG bytes in the
-  /// 200-400 KB band without a separate compression plugin.
+  /// Pixel cap for the captured image's longest dimension.
   final int maxWidth;
 
-  /// Caller-provided submit handler. Receives bytes, filename, and the
-  /// resolved MIME type of the picked file. Returning null keeps the modal
-  /// open (caller decides). Returning non-null pops the modal with
-  /// that value. Throwing shows the error inline.
+  /// Caller-provided submit handler.
   final Future<Object?> Function(
     Uint8List bytes,
     String filename,
     String mimeType,
   ) onSubmit;
 
-  /// Convenience that wires up `showModalBottomSheet` with the
-  /// sensible defaults for this flow (full-height capable,
-  /// non-dismissible so an accidental swipe doesn't lose the captured
-  /// bytes mid-upload, transparent background so we own the corners).
+  /// Convenience that wires up `showModalBottomSheet` as a compact card.
   static Future<T?> show<T>(
     BuildContext context, {
     required String title,
@@ -67,17 +59,23 @@ class PhotoCaptureModal extends StatefulWidget {
       String mimeType,
     ) onSubmit,
   }) {
-    return showModalBottomSheet<T>(
+    return showDialog<T>(
       context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      builder: (_) => PhotoCaptureModal(
-        title: title,
-        front: front,
-        maxWidth: maxWidth ?? (front ? 1280 : 1600),
-        onSubmit: (b, f, m) => onSubmit(b, f, m),
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: PhotoCaptureModal(
+            title: title,
+            front: front,
+            maxWidth: maxWidth ?? (front ? 1280 : 1600),
+            onSubmit: (b, f, m) => onSubmit(b, f, m),
+          ),
+        ),
       ),
     );
   }
@@ -240,95 +238,209 @@ class _PhotoCaptureModalState extends State<PhotoCaptureModal> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(20),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.14),
+            blurRadius: 32,
+            offset: const Offset(0, 8),
           ),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header row
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 6, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header ───────────────────────────────────────────────
                 Row(
                   children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.blueTint,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.add_a_photo_outlined,
+                        size: 17,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: Text(widget.title, style: AppTextStyles.title16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Upload Photo',
+                            style: AppTextStyles.medium14.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            widget.title,
+                            style: AppTextStyles.body12.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
                     IconButton(
                       onPressed:
                           _busy ? null : () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 20,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                // Preview area
-                AspectRatio(
-                  aspectRatio: 4 / 3,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface2,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: _bytes == null
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.add_photo_alternate_outlined,
-                                  size: 52,
-                                  color: AppColors.textMuted,
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  'Take a photo or choose from gallery',
-                                  style: AppTextStyles.body12.copyWith(
-                                    color: AppColors.textMuted,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          )
-                        : ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: Image.memory(_bytes!, fit: BoxFit.cover),
-                          ),
+
+                const SizedBox(height: 10),
+
+                // ── Body: action tiles OR preview + actions ───────────────
+                if (_bytes == null) ...[
+                  // No photo yet → two tall action tiles side by side
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ActionTile(
+                          icon: Icons.camera_alt_rounded,
+                          label: 'Camera',
+                          subtitle: 'Take a new photo',
+                          enabled: !_busy,
+                          onTap: _capture,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _ActionTile(
+                          icon: Icons.photo_library_outlined,
+                          label: 'Gallery',
+                          subtitle: 'Choose from library',
+                          enabled: !_busy,
+                          onTap: _pickFromGallery,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                // Inline error banner
+                ] else ...[
+                  // Photo picked → compact row: small preview + action buttons
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Small square preview
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: SizedBox(
+                          width: 90,
+                          height: 90,
+                          child: Image.memory(
+                            _bytes!,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Action column
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _busy ? null : _capture,
+                              icon: const Icon(
+                                Icons.camera_alt_rounded,
+                                size: 16,
+                              ),
+                              label: const Text('Retake'),
+                              style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                textStyle: AppTextStyles.medium12,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            OutlinedButton.icon(
+                              onPressed: _busy ? null : _pickFromGallery,
+                              icon: const Icon(
+                                Icons.photo_library_outlined,
+                                size: 16,
+                              ),
+                              label: const Text('Gallery'),
+                              style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                textStyle: AppTextStyles.medium12,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            FilledButton.icon(
+                              onPressed:
+                                  _busy ? null : _submit,
+                              icon: _busy
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.cloud_upload_rounded,
+                                      size: 16,
+                                    ),
+                              label: Text(
+                                _busy ? 'Uploading…' : 'Submit',
+                              ),
+                              style: FilledButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                textStyle: AppTextStyles.medium12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                // ── Error banner ─────────────────────────────────────────
                 if (_error != null) ...[
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.redTint,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           Icons.error_outline_rounded,
-                          size: 16,
+                          size: 15,
                           color: AppColors.danger,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _error!,
-                            style: AppTextStyles.medium12.copyWith(
+                            style: AppTextStyles.body12.copyWith(
                               color: AppColors.danger,
                             ),
                           ),
@@ -337,60 +449,85 @@ class _PhotoCaptureModalState extends State<PhotoCaptureModal> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 14),
-                // Action buttons row
-                Row(
-                  children: [
-                    // Camera button
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _busy ? null : _capture,
-                        icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                        label: Text(
-                          _bytes == null ? 'Camera' : 'Retake',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+
+                // ── Submit button (shown below tiles when no preview yet) ─
+                if (_bytes == null) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 38,
+                    child: FilledButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.cloud_upload_rounded, size: 16),
+                      label: const Text('Submit'),
                     ),
-                    const SizedBox(width: 8),
-                    // Gallery / file picker button
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _busy ? null : _pickFromGallery,
-                        icon: const Icon(
-                          Icons.photo_library_outlined,
-                          size: 18,
-                        ),
-                        label: const Text(
-                          'Gallery',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Submit / upload button
-                    Expanded(
-                      flex: 2,
-                      child: FilledButton.icon(
-                        onPressed: (_bytes == null || _busy) ? null : _submit,
-                        icon: _busy
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.cloud_upload_rounded, size: 18),
-                        label: Text(_busy ? 'Uploading…' : 'Submit'),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),
+        );
+  }
+}
+
+// ── Small action tile ──────────────────────────────────────────────────────────
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: enabled ? AppColors.blueTint : AppColors.greyTint,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: enabled
+                ? AppColors.primary.withValues(alpha: 0.25)
+                : AppColors.border,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: enabled ? AppColors.primary : AppColors.textMuted,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: AppTextStyles.medium12.copyWith(
+                color: enabled ? AppColors.primary : AppColors.textMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: AppTextStyles.body10.copyWith(
+                color: AppColors.textMuted,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );

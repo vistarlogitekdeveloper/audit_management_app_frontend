@@ -1,3 +1,5 @@
+import 'dart:convert' show base64Decode;
+import 'dart:typed_data' show Uint8List;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -132,6 +134,7 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
             ],
             _AuditObservationBlock(
               observation: (widget.auditObservation ?? '').trim(),
+              evidencePhotoUrls: widget.item.evidencePhotoUrls,
             ),
             if (widget.item.auditorRemark.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -583,12 +586,16 @@ class _PersonAutocompleteState extends State<_PersonAutocomplete> {
 }
 
 class _AuditObservationBlock extends StatelessWidget {
-  const _AuditObservationBlock({required this.observation});
+  const _AuditObservationBlock({
+    required this.observation,
+    required this.evidencePhotoUrls,
+  });
 
   /// Empty string when the auditor didn't write an observation. The widget
   /// renders a muted "Auditor didn't share an observation" placeholder so
   /// the absence is visible rather than the block silently disappearing.
   final String observation;
+  final List<String> evidencePhotoUrls;
 
   @override
   Widget build(BuildContext context) {
@@ -625,7 +632,125 @@ class _AuditObservationBlock extends StatelessWidget {
               fontStyle: hasObservation ? null : FontStyle.italic,
             ),
           ),
+          if (evidencePhotoUrls.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 60,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: evidencePhotoUrls.length,
+                itemBuilder: (context, index) {
+                  final url = evidencePhotoUrls[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _EvidenceThumbnail(url: url),
+                  );
+                },
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _EvidenceThumbnail extends StatelessWidget {
+  const _EvidenceThumbnail({required this.url});
+
+  final String url;
+
+  bool get _isDataUrl => url.startsWith('data:');
+
+  Uint8List _decodeDataUrl() {
+    final comma = url.indexOf(',');
+    return base64Decode(url.substring(comma + 1));
+  }
+
+  Widget _buildImage({BoxFit fit = BoxFit.cover}) {
+    if (_isDataUrl) {
+      try {
+        return Image.memory(
+          _decodeDataUrl(),
+          fit: fit,
+          errorBuilder: (ctx, err, st) {
+            return Container(
+              color: AppColors.redTint,
+              alignment: Alignment.center,
+              child: Icon(Icons.broken_image_outlined, size: 20, color: AppColors.danger),
+            );
+          },
+        );
+      } catch (_) {
+        return Container(
+          color: AppColors.redTint,
+          alignment: Alignment.center,
+          child: Icon(Icons.broken_image_outlined, size: 20, color: AppColors.danger),
+        );
+      }
+    }
+    return Image.network(
+      url,
+      fit: fit,
+      errorBuilder: (ctx, err, st) {
+        return Container(
+          color: AppColors.redTint,
+          alignment: Alignment.center,
+          child: Icon(Icons.broken_image_outlined, size: 20, color: AppColors.danger),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.all(16),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: InteractiveViewer(
+                    maxScale: 4.0,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _buildImage(fit: BoxFit.contain),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: CircleAvatar(
+                    backgroundColor: Colors.black.withValues(alpha: 0.5),
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(5),
+          child: _buildImage(),
+        ),
       ),
     );
   }

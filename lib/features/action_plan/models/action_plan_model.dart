@@ -116,6 +116,7 @@ class ActionItemModel {
     this.reviewStatus = 'pending',
     this.reviewedBy,
     this.reviewedAt,
+    this.evidencePhotoUrls = const [],
   });
 
   /// Backend ActionItem id (null for items not yet persisted).
@@ -155,6 +156,9 @@ class ActionItemModel {
   /// When the auditor set the current reviewStatus.
   final DateTime? reviewedAt;
 
+  /// Auditor's original evidence photos from the audit sheet.
+  final List<String> evidencePhotoUrls;
+
   bool get isApproved => reviewStatus == 'approved';
   bool get isRejected => reviewStatus == 'rejected';
 
@@ -171,6 +175,7 @@ class ActionItemModel {
     String? reviewStatus,
     ReviewerRef? reviewedBy,
     DateTime? reviewedAt,
+    List<String>? evidencePhotoUrls,
   }) {
     return ActionItemModel(
       id: id ?? this.id,
@@ -185,6 +190,7 @@ class ActionItemModel {
       reviewStatus: reviewStatus ?? this.reviewStatus,
       reviewedBy: reviewedBy ?? this.reviewedBy,
       reviewedAt: reviewedAt ?? this.reviewedAt,
+      evidencePhotoUrls: evidencePhotoUrls ?? this.evidencePhotoUrls,
     );
   }
 
@@ -229,7 +235,43 @@ class ActionItemModel {
       reviewedAt: DateTime.tryParse(
         json['reviewed_at']?.toString() ?? json['reviewedAt']?.toString() ?? '',
       ),
+      evidencePhotoUrls: _parseEvidencePhotoUrls(parameter ?? {}),
     );
+  }
+
+  static List<String> _parseEvidencePhotoUrls(Map<String, dynamic> json) {
+    final out = <String>[];
+    void addIfValid(Object? value) {
+      if (value is String &&
+          (value.startsWith('http') || value.startsWith('data:'))) {
+        out.add(value);
+      }
+    }
+
+    final flat = json['image_urls'];
+    if (flat is List) {
+      for (final entry in flat) {
+        addIfValid(entry);
+      }
+    }
+
+    final structured = json['images'];
+    if (structured is List) {
+      for (final entry in structured) {
+        if (entry is Map) {
+          addIfValid(entry['presigned_url'] ??
+              entry['url'] ??
+              entry['image_url']);
+        } else {
+          addIfValid(entry);
+        }
+      }
+    }
+
+    if (out.isEmpty) {
+      addIfValid(json['image_url']);
+    }
+    return out;
   }
 
   /// Convert backend snake_case status to Title-Case for the dropdown.
