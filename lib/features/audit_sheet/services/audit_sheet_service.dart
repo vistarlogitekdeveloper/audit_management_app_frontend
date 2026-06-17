@@ -93,7 +93,10 @@ class AuditSheetService {
     final data = _apiService.extractObject(response);
     for (final key in const ['presigned_url', 'url', 'image_url']) {
       final value = data[key];
-      if (value is String && value.startsWith('http')) return value;
+      if (value is String &&
+          (value.startsWith('http') || value.startsWith('data:'))) {
+        return value;
+      }
     }
     throw const ApiException(
       message: 'Upload succeeded but the server did not return a URL.',
