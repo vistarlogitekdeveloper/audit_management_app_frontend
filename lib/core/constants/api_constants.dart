@@ -41,6 +41,11 @@ class ApiConstants {
   static String auditSheet(String auditPlanId) =>
       '/audit-sheets/$auditPlanId';
   static String submitAuditSheet(String id) => '/audit-sheets/$id/submit';
+  /// Multipart POST that attaches a single photo to a parameter on the
+  /// auditor's sheet. Returns a presigned HTTPS URL in `image_url` (and
+  /// duplicated on `presigned_url` / `url` for backward compat).
+  static String uploadAuditSheetImage(String id) =>
+      '/audit-sheets/$id/upload-image';
   static String acknowledgeAuditSheet(String id) =>
       '/audit-sheets/$id/acknowledge';
   static String reviewAuditSheet(String id) => '/audit-sheets/$id/review';

@@ -128,11 +128,67 @@ class AuditSheetProvider extends ChangeNotifier {
                 parameter.index: AuditRowState(
                   result: parameter.result,
                   remark: parameter.remark,
+                  imageUrls: parameter.imageUrls,
                 ),
             };
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Uploads one photo for [index] right away (no draft staging) and
+  /// Uploads the given [bytes] for [index] and appends the returned
+  /// presigned URL to that row's [imageUrls]. Returns the URL so the
+  /// caller (typically the photo-capture modal) can close itself with
+  /// a result. The per-row [AuditRowState.isUploading] flag flips while
+  /// in flight so the UI can show a spinner without touching the
+  /// page-level [isLoading] overlay. Throws on failure — the modal
+  /// catches and surfaces the message inline.
+  Future<String> uploadPhoto({
+    required String auditId,
+    required int index,
+    required List<int> bytes,
+    String? filename,
+    String? mimeType,
+  }) async {
+    final current = rowStates[index] ?? const AuditRowState();
+    rowStates[index] = current.copyWith(isUploading: true);
+    notifyListeners();
+    try {
+      final url = await _service.uploadParameterImage(
+        auditId: auditId,
+        paramIndex: index,
+        bytes: bytes,
+        filename: filename,
+        mimeType: mimeType,
+      );
+      final after = rowStates[index] ?? const AuditRowState();
+      rowStates[index] = after.copyWith(
+        imageUrls: [...after.imageUrls, url],
+        isUploading: false,
+      );
+      hasUnsavedChanges = true;
+      notifyListeners();
+      return url;
+    } catch (error) {
+      final after = rowStates[index] ?? const AuditRowState();
+      rowStates[index] = after.copyWith(isUploading: false);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Drops a photo URL from the row's local list. Backend has no delete
+  /// endpoint yet, so the photo will reappear on the next sheet GET — we
+  /// flag this in the UI by labeling the action "Hide for this session".
+  void removePhotoLocally(int index, String url) {
+    final current = rowStates[index];
+    if (current == null) return;
+    final next = current.imageUrls.where((u) => u != url).toList();
+    if (next.length == current.imageUrls.length) return;
+    rowStates[index] = current.copyWith(imageUrls: next);
+    hasUnsavedChanges = true;
+    notifyListeners();
   }
 
   String _readableError(Object error) {

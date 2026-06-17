@@ -177,9 +177,10 @@ class _PlanCard extends StatelessWidget {
   final bool readOnly;
   final VoidCallback onOpen;
 
-  /// Auditors get a second chip row with review counters
-  /// (Pending review / Approved / Rejected) so they can spot plans that
-  /// still need attention without opening each one.
+  /// Controls whether the action button reads "Review" (auditor flow)
+  /// vs "Edit" / "View" (owner / cluster manager flow). The review-count
+  /// chip row (Pending / Approved / Rejected) renders unconditionally —
+  /// owners and cluster managers find that summary useful too.
   final bool showReviewCounts;
 
   @override
@@ -239,30 +240,28 @@ class _PlanCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (showReviewCounts) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _Chip(
-                    label: 'Pending review',
-                    value: '${plan.itemsReviewPending}',
-                    color: AppColors.warning,
-                  ),
-                  _Chip(
-                    label: 'Approved',
-                    value: '${plan.itemsReviewApproved}',
-                    color: AppColors.success,
-                  ),
-                  _Chip(
-                    label: 'Rejected',
-                    value: '${plan.itemsReviewRejected}',
-                    color: AppColors.danger,
-                  ),
-                ],
-              ),
-            ],
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _Chip(
+                  label: 'Pending review',
+                  value: '${plan.itemsReviewPending}',
+                  color: AppColors.warning,
+                ),
+                _Chip(
+                  label: 'Approved',
+                  value: '${plan.itemsReviewApproved}',
+                  color: AppColors.success,
+                ),
+                _Chip(
+                  label: 'Rejected',
+                  value: '${plan.itemsReviewRejected}',
+                  color: AppColors.danger,
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Row(
               children: [

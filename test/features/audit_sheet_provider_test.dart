@@ -73,6 +73,17 @@ class _FakeAuditSheetService implements AuditSheetService {
   }) {
     return _model(auditId);
   }
+
+  @override
+  Future<String> uploadParameterImage({
+    required String auditId,
+    required int paramIndex,
+    required List<int> bytes,
+    String? filename,
+    String? mimeType,
+  }) async {
+    return 'https://example.test/$auditId/$paramIndex.jpg';
+  }
 }
 
 void main() {

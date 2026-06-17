@@ -64,6 +64,42 @@ class AuditSheetService {
     await _apiService.post(ApiConstants.submitAuditSheet(auditId));
   }
 
+  /// Uploads one photo against [paramIndex] on the sheet. Caller passes
+  /// either [filePath] (mobile, image_picker's `XFile.path`) or [bytes]
+  /// (web, `XFile.readAsBytes()` — paths are synthetic blobs there).
+  /// Returns the presigned HTTPS URL the backend stored, which the caller
+  /// drops straight into the row's [AuditRowState.imageUrls] for display.
+  ///
+  /// Tolerates three response shapes — the current backend returns the
+  /// presigned URL on `presigned_url` / `url` (with `image_url` carrying
+  /// the `s3://` canonical), and a pending swap will move the presigned
+  /// URL onto `image_url` itself. We pick whichever HTTP(S) value lands
+  /// first so the rollout doesn't break the row strip.
+  Future<String> uploadParameterImage({
+    required String auditId,
+    required int paramIndex,
+    required List<int> bytes,
+    String? filename,
+    String? mimeType,
+  }) async {
+    final response = await _apiService.postMultipart(
+      ApiConstants.uploadAuditSheetImage(auditId),
+      fileField: 'image',
+      bytes: bytes,
+      filename: filename,
+      mimeType: mimeType,
+      fields: {'param_index': paramIndex.toString()},
+    );
+    final data = _apiService.extractObject(response);
+    for (final key in const ['presigned_url', 'url', 'image_url']) {
+      final value = data[key];
+      if (value is String && value.startsWith('http')) return value;
+    }
+    throw const ApiException(
+      message: 'Upload succeeded but the server did not return a URL.',
+    );
+  }
+
   Future<AcknowledgeResult> acknowledgeSheet(
     String auditId,
     String ownerRemarks,

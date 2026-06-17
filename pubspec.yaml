@@ -26,6 +26,11 @@ dependencies:
   path_provider: ^2.1.4
   shimmer: ^3.0.0
   animations: ^2.0.11
+  # Per-question photo attachment on the auditor's audit sheet. The
+  # federated plugin transparently routes to the camera on mobile and to
+  # an <input type="file"> on web (no extra config needed for the Workers
+  # deployment).
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

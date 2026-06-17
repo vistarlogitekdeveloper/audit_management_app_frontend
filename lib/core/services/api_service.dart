@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert' show jsonDecode;
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
 import '../constants/app_constants.dart';
 import '../utils/helpers.dart';
+import 'multipart_dispatcher.dart';
 
 /// Error thrown by [ApiService] for non-2xx responses / transport failures.
 /// Carries the HTTP [statusCode] (null for transport errors) so callers can
@@ -140,6 +143,88 @@ class ApiService {
       return response.data;
     } on DioException catch (error) {
       throw _toApiException(error);
+    }
+  }
+
+  /// Multipart POST. Delegates to [MultipartDispatcher], which uses a
+  /// hand-rolled byte-level multipart envelope on web (after dio,
+  /// `package:http`, and the browser's own FormData all failed against
+  /// this backend's multer pipeline) and dio's FormData on native.
+  ///
+  /// [fileField] is the form-data key (e.g. `image`). Pass [bytes] +
+  /// [filename]. [mimeType] is the wire-level Content-Type for the file
+  /// part; falls back to a filename-extension lookup, then `image/jpeg`.
+  Future<dynamic> postMultipart(
+    String path, {
+    required String fileField,
+    required List<int> bytes,
+    String? filename,
+    String? mimeType,
+    Map<String, String> fields = const {},
+  }) async {
+    final effectiveMime = _resolveMimeType(
+      mimeType: mimeType,
+      filename: filename,
+    );
+    final token = preferences.getString(AppConstants.authTokenKey);
+    final headers = <String, String>{
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+
+    final MultipartResponse response;
+    try {
+      response = await MultipartDispatcher.send(
+        url: '${ApiConstants.baseUrl}$path',
+        fileField: fileField,
+        filename: filename ?? 'upload.jpg',
+        mimeType: effectiveMime,
+        bytes: Uint8List.fromList(bytes),
+        fields: fields,
+        headers: headers,
+      );
+    } catch (error) {
+      throw ApiException(message: 'Upload transport error: $error');
+    }
+
+    if (!response.isSuccess) {
+      String message = 'Request failed (HTTP ${response.statusCode}).';
+      if (response.body.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map && decoded['message'] != null) {
+            message = decoded['message'].toString();
+          }
+        } catch (_) {
+          // Non-JSON body, keep the generic HTTP message.
+        }
+      }
+      throw ApiException(message: message, statusCode: response.statusCode);
+    }
+
+    if (response.body.isEmpty) return null;
+    try {
+      return jsonDecode(response.body);
+    } catch (_) {
+      return response.body;
+    }
+  }
+
+  /// Picks the wire-level MIME string for the upload part. Prefers an
+  /// explicit [mimeType] from the caller (image_picker's `XFile.mimeType`);
+  /// falls back to a filename-extension lookup. Defaults to `image/jpeg`
+  /// because every current caller is uploading a photo.
+  String _resolveMimeType({String? mimeType, String? filename}) {
+    if (mimeType != null && mimeType.contains('/')) return mimeType;
+    final ext = filename?.split('.').last.toLowerCase() ?? '';
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
     }
   }
 

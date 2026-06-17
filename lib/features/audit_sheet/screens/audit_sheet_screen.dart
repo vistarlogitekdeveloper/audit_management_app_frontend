@@ -222,6 +222,33 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                               remarkController: controller,
                               showValidation: _showValidation,
                               isReadOnly: isAcknowledged,
+                              imageUrls: row?.imageUrls ?? const [],
+                              isUploading: row?.isUploading ?? false,
+                              onUploadImage: isAcknowledged
+                                  ? null
+                                  : (bytes, filename, mimeType) async {
+                                      // Errors propagate to PhotoCaptureModal,
+                                      // which shows them inline so the user
+                                      // can retry with Camera / Gallery /
+                                      // Submit without losing the bytes.
+                                      return ref
+                                          .read(auditSheetProvider)
+                                          .uploadPhoto(
+                                            auditId: widget.auditId,
+                                            index: parameter.index,
+                                            bytes: bytes,
+                                            filename: filename,
+                                            mimeType: mimeType,
+                                          );
+                                    },
+                              onRemoveImage: isAcknowledged
+                                  ? null
+                                  : (url) => ref
+                                      .read(auditSheetProvider)
+                                      .removePhotoLocally(
+                                        parameter.index,
+                                        url,
+                                      ),
                               onResultChanged: (result) {
                                 ref
                                     .read(auditSheetProvider)

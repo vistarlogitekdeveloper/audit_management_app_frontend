@@ -143,6 +143,17 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
             plan: plan,
             failCount: failCount,
             deadline: deadline,
+            approvedCount: provider.items
+                .where((i) => i.reviewStatus == 'approved')
+                .length,
+            rejectedCount: provider.items
+                .where((i) => i.reviewStatus == 'rejected')
+                .length,
+            pendingCount: provider.items
+                .where((i) =>
+                    i.reviewStatus != 'approved' &&
+                    i.reviewStatus != 'rejected')
+                .length,
           ),
           const SizedBox(height: 10),
           if (plan == null)
@@ -323,6 +334,9 @@ class _HeaderBar extends StatelessWidget {
     required this.plan,
     required this.failCount,
     required this.deadline,
+    required this.pendingCount,
+    required this.approvedCount,
+    required this.rejectedCount,
   });
 
   final ActionItemMode mode;
@@ -330,6 +344,9 @@ class _HeaderBar extends StatelessWidget {
   final ActionPlanModel? plan;
   final int failCount;
   final DateTime deadline;
+  final int pendingCount;
+  final int approvedCount;
+  final int rejectedCount;
 
   @override
   Widget build(BuildContext context) {
@@ -348,8 +365,6 @@ class _HeaderBar extends StatelessWidget {
         : isAuditor
             ? 'Approve each corrective action or reject with a remark.'
             : 'Turn failed checkpoints into owned corrective work.';
-
-    int approved = 0, rejected = 0, pending = failCount;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -403,17 +418,17 @@ class _HeaderBar extends StatelessWidget {
               ),
               _MiniStat(
                 label: 'Pending',
-                value: '$pending',
+                value: '$pendingCount',
                 color: AppColors.warning,
               ),
               _MiniStat(
                 label: 'Approved',
-                value: '$approved',
+                value: '$approvedCount',
                 color: AppColors.success,
               ),
               _MiniStat(
                 label: 'Rejected',
-                value: '$rejected',
+                value: '$rejectedCount',
                 color: AppColors.danger,
               ),
             ],

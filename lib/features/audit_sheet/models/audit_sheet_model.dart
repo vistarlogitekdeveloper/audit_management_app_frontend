@@ -119,25 +119,41 @@ class AuditRowState {
   const AuditRowState({
     this.result,
     this.remark = '',
+    this.imageUrls = const [],
+    this.isUploading = false,
   });
 
   final String? result;
   final String remark;
 
+  /// Presigned HTTPS URLs that the backend has confirmed for this row —
+  /// either loaded from the sheet GET or returned from a successful upload.
+  /// Treated as immutable; replaced on every update via [copyWith].
+  final List<String> imageUrls;
+
+  /// True while at least one photo for this row is mid-upload. Drives the
+  /// per-row spinner so the auditor knows to wait before submitting.
+  final bool isUploading;
+
   AuditRowState copyWith({
     String? result,
     String? remark,
+    List<String>? imageUrls,
+    bool? isUploading,
   }) {
     return AuditRowState(
       result: result ?? this.result,
       remark: remark ?? this.remark,
+      imageUrls: imageUrls ?? this.imageUrls,
+      isUploading: isUploading ?? this.isUploading,
     );
   }
 
   Map<String, dynamic> toJson(int index, String parameterName) => {
-    'index': index,
-    'name': parameterName,
-    'result': result,
-    'remark': remark,
-  };
+        'index': index,
+        'name': parameterName,
+        'result': result,
+        'remark': remark,
+        'image_urls': imageUrls,
+      };
 }
