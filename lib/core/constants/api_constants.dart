@@ -31,6 +31,10 @@ class ApiConstants {
   static String rescheduleAuditPlan(String id) =>
       '/audit-plans/$id/reschedule';
   static String cancelAuditPlan(String id) => '/audit-plans/$id';
+  // Cascade hard-delete: removes the plan plus its sheet, parameters, photos,
+  // action plan / items and associated S3 objects in a single transaction.
+  static String hardDeleteAuditPlan(String id) =>
+      '/audit-plans/$id/hard-delete';
 
   // Dashboard
   static const String adminDashboard = '/admin/dashboard';

@@ -1,10 +1,26 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/services/api_service.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../models/audit_plan_model.dart';
 import '../services/audit_plan_service.dart';
+
+const Set<String> _deletableAuditPlanStatuses = {
+  AppConstants.statusDraft,
+  AppConstants.statusReleased,
+};
+
+/// Whether an audit plan in [status] may be deleted from the UI.
+///
+/// The hard-delete endpoint gates on the audit SHEET status (it refuses, 400,
+/// once the sheet is `submitted` or `acknowledged`). The plan / upcoming lists
+/// don't expose the sheet status, so we use the plan status as a close proxy:
+/// draft and released plans normally have a not-started or draft sheet, which
+/// the backend allows deleting. The backend 400 remains the real guard.
+bool isAuditPlanDeletable(String status) =>
+    _deletableAuditPlanStatuses.contains(status.trim().toLowerCase());
 
 final auditPlanServiceProvider = Provider<AuditPlanService>(
   (ref) => AuditPlanService(ref.watch(apiServiceProvider)),
@@ -145,6 +161,30 @@ class AuditPlanProvider extends ChangeNotifier {
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Hard-deletes a planned audit by [id] and returns the cascade delete
+  /// counts.
+  ///
+  /// Optimistically removes the entry from [plans] before the API call so the
+  /// UI reacts immediately.  On failure the plan is restored and the error is
+  /// rethrown so the caller can surface it to the user.
+  Future<AuditPlanDeletionResult> deletePlan(String id) async {
+    // Snapshot the current list so we can roll back on error.
+    final previousPlans = List<AuditPlanModel>.from(plans);
+    plans = plans.where((p) => p.id != id).toList();
+    notifyListeners();
+
+    try {
+      final result = await _service.deletePlan(id);
+      _invalidateDashboards();
+      return result;
+    } catch (_) {
+      // Roll back to the previous state.
+      plans = previousPlans;
+      notifyListeners();
+      rethrow;
     }
   }
 

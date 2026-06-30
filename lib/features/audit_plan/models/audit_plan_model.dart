@@ -85,6 +85,61 @@ class AuditPlanModel {
   };
 }
 
+/// Result of a hard-delete (cascade) of an audit plan. Carries the per-table
+/// row counts and S3 object counts the backend removed, so the UI can confirm
+/// exactly what was purged.
+class AuditPlanDeletionResult {
+  const AuditPlanDeletionResult({
+    required this.removed,
+    required this.s3Deleted,
+    required this.s3Failed,
+  });
+
+  /// Per-table delete counts, e.g. {action_items: 10, audit_parameters: 22}.
+  final Map<String, int> removed;
+  final int s3Deleted;
+  final int s3Failed;
+
+  /// Total related records removed across every table.
+  int get totalRecords =>
+      removed.values.fold<int>(0, (sum, count) => sum + count);
+
+  static int _asInt(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  factory AuditPlanDeletionResult.fromJson(Map<String, dynamic> json) {
+    final removed = <String, int>{};
+    final removedRaw = json['removed'];
+    if (removedRaw is Map) {
+      removedRaw.forEach((key, value) {
+        removed[key.toString()] = _asInt(value);
+      });
+    }
+    final s3 = json['s3'];
+    final s3Map = s3 is Map ? s3 : const <dynamic, dynamic>{};
+    return AuditPlanDeletionResult(
+      removed: removed,
+      s3Deleted: _asInt(s3Map['deleted']),
+      s3Failed: _asInt(s3Map['failed']),
+    );
+  }
+
+  /// Short, human-readable summary for a snackbar.
+  String get summary {
+    final parts = <String>[];
+    if (totalRecords > 0) {
+      parts.add('$totalRecords related record${totalRecords == 1 ? '' : 's'}');
+    }
+    if (s3Deleted > 0) {
+      parts.add('$s3Deleted file${s3Deleted == 1 ? '' : 's'}');
+    }
+    if (parts.isEmpty) return 'Scheduled audit deleted.';
+    return 'Scheduled audit deleted — ${parts.join(' and ')} removed.';
+  }
+}
+
 class ProjectLookupModel {
   const ProjectLookupModel({
     required this.id,

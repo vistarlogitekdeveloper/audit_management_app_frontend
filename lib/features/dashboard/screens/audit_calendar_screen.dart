@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/helpers.dart';
 import '../../dashboard/models/dashboard_model.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../audit_plan/providers/audit_plan_provider.dart';
@@ -65,7 +66,7 @@ class _AuditCalendarScreenState extends ConsumerState<AuditCalendarScreen> {
   }
 }
 
-class _AuditCalendarContent extends StatefulWidget {
+class _AuditCalendarContent extends ConsumerStatefulWidget {
   const _AuditCalendarContent({
     required this.dashboard,
     required this.auditPlanState,
@@ -75,10 +76,11 @@ class _AuditCalendarContent extends StatefulWidget {
   final AuditPlanProvider auditPlanState;
 
   @override
-  State<_AuditCalendarContent> createState() => _AuditCalendarContentState();
+  ConsumerState<_AuditCalendarContent> createState() =>
+      _AuditCalendarContentState();
 }
 
-class _AuditCalendarContentState extends State<_AuditCalendarContent> {
+class _AuditCalendarContentState extends ConsumerState<_AuditCalendarContent> {
   // Filters
   String? _filterProject;
   String? _filterIncharge;
@@ -337,6 +339,7 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
               (val) => setState(() => _filterStatus = val),
             ),
           ),
+          const DataColumn(label: Text('Actions')),
         ],
         rows: List.generate(rows.length, (index) {
           final row = rows[index];
@@ -357,11 +360,74 @@ class _AuditCalendarContentState extends State<_AuditCalendarContent> {
               DataCell(Text(row['area'])),
               DataCell(Text(DateFormat('dd-MMM').format(row['planDate']))),
               DataCell(Text(row['status'])),
+              DataCell(_buildActionCell(row)),
             ],
           );
         }),
       ),
     );
+  }
+
+  Widget _buildActionCell(Map<String, dynamic> row) {
+    final deletable = isAuditPlanDeletable(row['status'] as String);
+    return IconButton(
+      icon: Icon(
+        Icons.delete_outline_rounded,
+        size: 20,
+        color: deletable
+            ? AppColors.danger
+            : AppColors.textSecondary.withValues(alpha: 0.4),
+      ),
+      tooltip: deletable
+          ? 'Delete scheduled audit'
+          : 'Only draft or released audits can be deleted',
+      splashRadius: 20,
+      onPressed: deletable
+          ? () => _confirmDelete(
+                id: row['auditId'] as String,
+                projectName: row['projectName'] as String,
+                date: row['planDate'] as DateTime,
+              )
+          : null,
+    );
+  }
+
+  Future<void> _confirmDelete({
+    required String id,
+    required String projectName,
+    required DateTime date,
+  }) async {
+    if (id.isEmpty) {
+      AppHelpers.showErrorSnackbar(
+        context,
+        'This audit is missing an id and cannot be deleted.',
+      );
+      return;
+    }
+
+    final confirmed = await AppHelpers.showConfirmationDialog(
+      context: context,
+      title: 'Delete scheduled audit?',
+      message:
+          'This permanently deletes the audit for "$projectName" scheduled on '
+          '${AppHelpers.formatDate(date)}, along with any audit sheet, photos '
+          'and action-plan items. This cannot be undone.',
+      confirmLabel: 'Delete',
+      confirmColor: AppColors.danger,
+    );
+    if (!confirmed || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await ref.read(auditPlanProvider).deletePlan(id);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(result.summary)),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(error));
+    }
   }
 
   Widget _buildHeaderFilter(

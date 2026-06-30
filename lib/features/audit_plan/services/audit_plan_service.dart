@@ -137,4 +137,19 @@ class AuditPlanService {
       },
     );
   }
+
+  /// Permanently hard-deletes a planned audit and every record that hangs off
+  /// it — the audit sheet, parameters, parameter photos, action plan, action
+  /// items, attachments and their S3 objects — in a single backend
+  /// transaction. The backend rejects this (400) once the audit sheet is
+  /// `submitted` or `acknowledged`, so an executed audit can't be purged.
+  ///
+  /// Returns the per-table row counts and S3 object counts that were removed.
+  Future<AuditPlanDeletionResult> deletePlan(String id) async {
+    final response =
+        await _apiService.delete(ApiConstants.hardDeleteAuditPlan(id));
+    return AuditPlanDeletionResult.fromJson(
+      _apiService.extractObject(response),
+    );
+  }
 }

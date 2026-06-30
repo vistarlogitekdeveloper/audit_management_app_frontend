@@ -266,7 +266,7 @@ class _PhotoCaptureModalState extends State<PhotoCaptureModal> {
                         color: AppColors.blueTint,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.add_a_photo_outlined,
                         size: 17,
                         color: AppColors.primary,

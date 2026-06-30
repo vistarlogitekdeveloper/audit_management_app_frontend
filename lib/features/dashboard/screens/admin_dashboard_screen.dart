@@ -426,6 +426,9 @@ class _UpcomingPanelState extends ConsumerState<_UpcomingPanel> {
                 subtitle: '${audit.location} - ${audit.status}',
                 meta: AppHelpers.formatDate(audit.auditDate),
                 status: audit.status,
+                onDelete: isAuditPlanDeletable(audit.status)
+                    ? () => _confirmDelete(audit, project.name)
+                    : null,
               );
             }),
           if (_showReschedule && widget.items.isNotEmpty)
@@ -487,6 +490,38 @@ class _UpcomingPanelState extends ConsumerState<_UpcomingPanel> {
       messenger.showSnackBar(
         const SnackBar(content: Text('Reschedule notification sent.')),
       );
+    } catch (error) {
+      if (!mounted) return;
+      AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(error));
+    }
+  }
+
+  Future<void> _confirmDelete(UpcomingAudit audit, String projectName) async {
+    if (audit.id.isEmpty) {
+      AppHelpers.showErrorSnackbar(
+        context,
+        'This audit is missing an id and cannot be deleted.',
+      );
+      return;
+    }
+
+    final confirmed = await AppHelpers.showConfirmationDialog(
+      context: context,
+      title: 'Delete scheduled audit?',
+      message:
+          'This permanently deletes the audit for "$projectName" scheduled on '
+          '${AppHelpers.formatDate(audit.auditDate)}, along with any audit '
+          'sheet, photos and action-plan items. This cannot be undone.',
+      confirmLabel: 'Delete',
+      confirmColor: AppColors.danger,
+    );
+    if (!confirmed || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await ref.read(auditPlanProvider).deletePlan(audit.id);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(result.summary)));
     } catch (error) {
       if (!mounted) return;
       AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(error));
@@ -716,12 +751,14 @@ class _TimelineItem extends StatelessWidget {
     required this.subtitle,
     required this.meta,
     required this.status,
+    this.onDelete,
   });
 
   final String title;
   final String subtitle;
   final String meta;
   final String status;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -767,6 +804,16 @@ class _TimelineItem extends StatelessWidget {
               StatusPill(status: status),
             ],
           ),
+          if (onDelete != null) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, size: 20),
+              color: AppColors.danger,
+              tooltip: 'Delete scheduled audit',
+              splashRadius: 20,
+              onPressed: onDelete,
+            ),
+          ],
         ],
       ),
     );
