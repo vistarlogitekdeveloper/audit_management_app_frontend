@@ -79,6 +79,89 @@ class AppConstants {
     'Employee / Customer connect',
   ];
 
+  // "What the auditor is checking for" description for each audit parameter,
+  // keyed by the parameter name. Shown under the parameter title on the audit
+  // sheet so the team understands the audit scope. Keys must match
+  // [auditParameters] exactly — a name with no entry here simply renders no
+  // description (never an error), so this map is safe to leave partially
+  // populated.
+  static const Map<String, String> auditParameterDescriptions = {
+    '5S and hygiene of workplace':
+        'Overall 5S at individual work place as well as project site. '
+        'Awareness of 5S to the team as well as its utilization during daily '
+        'work.',
+    'Org structure display':
+        'Availability of updated organization display in clean, neat and '
+        'visible format.',
+    'Vision / Mission / Safety policies display':
+        'Availability of Vision / Mission / Safety / Environmental Policies '
+        'display.',
+    'Daily Sunrise meeting / Safety Oath':
+        'Evidence of Sunrise meeting and key topic discussions — Safety, 5S, '
+        'KAIZEN, daily work activity and other (SQDCM). Evidence to be gathered '
+        'from random employees.',
+    'Uniform / PPE used by all':
+        'Availability of uniform and PPE in good condition with all employees.',
+    'Alertness of security':
+        'When security is in Vistar scope, its alertness needs to be ensured '
+        'by the Site Project Owner.',
+    'CCTV availability and monitoring':
+        'CCTV available, in working condition and being monitored at regular '
+        'frequency.',
+    'Layout display':
+        'Clear layout display of warehouse indicating key areas within Vistar '
+        'control.',
+    'Safety Observation Tour':
+        'Evidence of planned SOT as per agreed frequency, listing safety '
+        'observations as well as action plan.',
+    'Vistar Way Matrix review':
+        'Effective utilization of Vistar Way Matrix to bring efficiency in '
+        'operation. Awareness level to project manager as well as next level.',
+    'Inward / Outward / Visitor entry registers':
+        'Documentation and effective usage of system for Inward, Outward, '
+        'Visitor entry and Gate pass: Security Registers.',
+    'Customer complaints recording':
+        'Customer complaint tracker along with relevant data, RCA and CAPA.',
+    'KPI / SLA reports + Awareness':
+        'Daily SLA availability, monitoring and review. Awareness to key team '
+        'members. Actions towards deviations in SLA.',
+    'SOP availability + Awareness':
+        'Availability of SOP at site. SOP awareness by operator and evidence '
+        'of SOP review.',
+    'CSI score / Action plan':
+        'Customer survey at regular interval, with action plan on low score.',
+    'Top 5 Problems / Challenges list':
+        'List of top 5 challenges / problems — awareness and action plan '
+        'towards the same.',
+    'Training calendar / attendance':
+        'Training plan and training records. Training linked to skill matrix '
+        'and customer complaints and issues.',
+    'Skill Matrix availability':
+        'Skill matrix with reference to working skills as well as other topics '
+        'such as 5S, KAIZEN, RCA and problem solving.',
+    'KAIZEN implementation':
+        'KAIZEN awareness to project team and effectiveness of KAIZEN roll out '
+        '(including horizontal deployment).',
+    'Regular attendance submitted to HR':
+        'Discipline in attendance submission and leave records.',
+    'Random check of one process':
+        'Detailed audit for one of the key processes of operation.',
+    'Awareness of customer pain area':
+        'Customer pain areas within and beyond Vistar scope listed, with '
+        'action plan for resolution / support ready with the Project Manager. '
+        'Effective communication about the same to the team.',
+    'Energy saving awareness':
+        'Awareness and initiative towards energy, water saving and waste '
+        'elimination.',
+    'Employee / Customer connect':
+        'Employee as well as customer connect should be evident during '
+        'interaction with employees and the customer representative.',
+  };
+
+  /// Description shown under an audit parameter title. Returns null when the
+  /// parameter has no description, so callers can conditionally hide the line.
+  static String? auditParameterDescription(String name) =>
+      auditParameterDescriptions[name];
 
   // Action plan deadline (days from audit date)
   static const int actionPlanDeadlineDays = 8;

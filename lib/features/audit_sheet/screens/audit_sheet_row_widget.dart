@@ -66,6 +66,12 @@ class AuditRowWidget extends StatefulWidget {
 }
 
 class _AuditRowWidgetState extends State<AuditRowWidget> {
+  /// Scope description for this parameter (e.g. what evidence to look for).
+  /// Null when the parameter has no description, in which case the line is
+  /// hidden entirely.
+  String? get _description =>
+      AppConstants.auditParameterDescription(widget.parameterName);
+
   bool get _answered => widget.selectedResult != null;
 
   bool get _remarkMissing => widget.remarkController.text.trim().isEmpty;
@@ -153,11 +159,26 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              widget.parameterName,
-                              style: AppTextStyles.medium14.copyWith(
-                                height: 1.35,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.parameterName,
+                                  style: AppTextStyles.medium14.copyWith(
+                                    height: 1.35,
+                                  ),
+                                ),
+                                if (_description != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _description!,
+                                    style: AppTextStyles.body12.copyWith(
+                                      color: AppColors.textSecondary,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ),
