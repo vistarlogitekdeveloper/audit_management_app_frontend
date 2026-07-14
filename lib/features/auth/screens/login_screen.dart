@@ -194,8 +194,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submitLogin() async {
     if (!_formKey.currentState!.validate()) return;
     final email = _emailController.text.trim();
+    final password = _passwordController.text;
     try {
-      await ref.read(authProvider).login(email, _passwordController.text);
+      var result = await ref.read(authProvider).login(email, password);
+      // The email maps to several roles — ask which one to continue as, then
+      // log in again with that role.
+      if (result.requiresRoleSelection) {
+        if (!mounted) return;
+        final role = await _promptRoleSelection(result.roles);
+        if (role == null || !mounted) return; // cancelled — stay on login
+        result = await ref.read(authProvider).login(email, password, role: role);
+      }
+      if (result.requiresRoleSelection) {
+        // Defensive: the second call should always yield a session.
+        if (!mounted) return;
+        AppHelpers.showErrorSnackbar(context, 'Please try signing in again.');
+        return;
+      }
       // Persist (or clear) the remembered email only on a successful
       // login — we never want to "remember" an email the user fat-
       // fingered into a failing attempt.
@@ -206,6 +221,134 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(error));
     }
+  }
+
+  /// Shows the role picker for a multi-role email. Returns the chosen backend
+  /// role string (e.g. `project_owner`) or null if the user dismissed it.
+  Future<String?> _promptRoleSelection(List<String> roles) {
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: AppColors.background,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppColors.line),
+          ),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Choose a role', style: AppTextStyles.title18),
+                  const SizedBox(height: 6),
+                  Text(
+                    'This account has more than one role. Select the one you '
+                    'want to continue as.',
+                    style: AppTextStyles.body13,
+                  ),
+                  const SizedBox(height: 18),
+                  ...roles.map((role) {
+                    final normalized = AppConstants.normalizeRole(role);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _RoleChoiceTile(
+                        label: AppHelpers.roleLabel(normalized),
+                        icon: _roleIcon(normalized),
+                        onTap: () =>
+                            Navigator.of(dialogContext).pop(role),
+                      ),
+                    );
+                  }),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: Text(
+                        'Cancel',
+                        style: AppTextStyles.medium13
+                            .copyWith(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  IconData _roleIcon(String normalizedRole) {
+    switch (normalizedRole) {
+      case AppConstants.roleAdmin:
+        return Icons.admin_panel_settings_outlined;
+      case AppConstants.roleAuditor:
+        return Icons.assignment_outlined;
+      case AppConstants.roleProjectOwner:
+        return Icons.reviews_outlined;
+      case AppConstants.roleClusterManager:
+        return Icons.hub_outlined;
+      default:
+        return Icons.badge_outlined;
+    }
+  }
+}
+
+/// A tappable role option in the multi-role login picker.
+class _RoleChoiceTile extends StatelessWidget {
+  const _RoleChoiceTile({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.30)),
+              ),
+              child: Icon(icon, color: AppColors.primary, size: 19),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label, style: AppTextStyles.medium14),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                color: AppColors.textMuted, size: 20),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -86,19 +86,32 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(String email, String password) async {
+  /// Logs in, optionally with a chosen [role] for multi-role emails. Returns
+  /// the [LoginResult] so the caller can prompt for a role when the backend
+  /// asks. Only a real session (single role, or a role picked) sets
+  /// [currentUser] and clears caches — a role-selection response leaves the
+  /// user unauthenticated so the router stays on /login.
+  Future<LoginResult> login(
+    String email,
+    String password, {
+    String? role,
+  }) async {
     isLoading = true;
     notifyListeners();
     try {
-      final (_, user) = await _service.login(
+      final result = await _service.login(
         email: email,
         password: password,
+        role: role,
       );
-      currentUser = user;
-      // Synchronously, before the finally-block's notifyListeners fires
-      // the navigation cascade — guarantees the new dashboard mounts on
-      // a clean cache rather than the previous user's data.
-      _invalidateSessionCaches();
+      if (!result.requiresRoleSelection) {
+        currentUser = result.user;
+        // Synchronously, before the finally-block's notifyListeners fires
+        // the navigation cascade — guarantees the new dashboard mounts on
+        // a clean cache rather than the previous user's data.
+        _invalidateSessionCaches();
+      }
+      return result;
     } finally {
       isLoading = false;
       notifyListeners();

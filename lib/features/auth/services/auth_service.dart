@@ -4,6 +4,28 @@ import '../../../core/services/api_service.dart';
 import '../../../core/utils/helpers.dart';
 import '../models/user_model.dart';
 
+/// Outcome of a login attempt. Either the credentials mapped to a single
+/// role and a session was established ([user] set), or the email holds
+/// multiple roles and the caller must prompt the user to pick one from
+/// [roles] and call login again with it.
+class LoginResult {
+  const LoginResult.success(this.user)
+      : requiresRoleSelection = false,
+        roles = const [];
+
+  const LoginResult.roleSelection(this.roles)
+      : requiresRoleSelection = true,
+        user = null;
+
+  final bool requiresRoleSelection;
+
+  /// Backend role strings (e.g. `admin`, `project_owner`) to choose between.
+  final List<String> roles;
+
+  /// The signed-in user; null when [requiresRoleSelection] is true.
+  final UserModel? user;
+}
+
 class AuthService {
   AuthService(this._apiService);
 
@@ -12,18 +34,33 @@ class AuthService {
   String? get storedToken =>
       _apiService.preferences.getString(AppConstants.authTokenKey);
 
-  Future<(String, UserModel)> login({
+  /// Logs in with email + password, optionally with a [role] when the email
+  /// maps to several roles and the user has picked one. Returns a
+  /// [LoginResult]: on success the session is persisted; when the backend
+  /// asks for a role choice, no session is stored and the available [roles]
+  /// are returned so the caller can prompt and retry with `role`.
+  Future<LoginResult> login({
     required String email,
     required String password,
+    String? role,
   }) async {
     final response = await _apiService.post(
       ApiConstants.login,
       data: {
         'email': email,
         'password': password,
+        if (role != null) 'role': role,
       },
     );
     final data = _apiService.extractObject(response);
+    if (data['requiresRoleSelection'] == true) {
+      final roles = (data['roles'] as List?)
+              ?.map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList() ??
+          <String>[];
+      return LoginResult.roleSelection(roles);
+    }
     final token = data['accessToken']?.toString() ?? '';
     final refreshToken = data['refreshToken']?.toString() ?? '';
     final userJson =
@@ -44,7 +81,7 @@ class AuthService {
     await _apiService.preferences.setString(AppConstants.userIdKey, user.id);
     await _apiService.preferences.setString(AppConstants.userNameKey, user.name);
     await _apiService.preferences.setString(AppConstants.userEmailKey, user.email);
-    return (token, user);
+    return LoginResult.success(user);
   }
 
   Future<void> logout() async {
