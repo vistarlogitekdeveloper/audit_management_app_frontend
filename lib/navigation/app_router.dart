@@ -16,6 +16,7 @@ import '../features/dashboard/screens/auditor_dashboard_screen.dart';
 import '../features/action_plan_tracker/screens/action_plan_tracker_screen.dart';
 import '../features/admin_reports/screens/admin_reports_screen.dart';
 import '../features/audit_history/screens/audit_history_screen.dart';
+import '../features/audit_questions/screens/audit_questions_screen.dart';
 import '../features/cluster/screens/cluster_action_plan_monitor_screen.dart';
 import '../features/cluster/screens/cluster_audit_detail_screen.dart';
 import '../features/cluster/screens/cluster_dashboard_screen.dart';
@@ -105,6 +106,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/admin/projects',
             builder: (_, __) => const ProjectsScreen(),
+          ),
+          GoRoute(
+            path: '/admin/audit-questions',
+            builder: (_, __) => const AuditQuestionsScreen(),
           ),
           GoRoute(
             path: '/admin/reports',

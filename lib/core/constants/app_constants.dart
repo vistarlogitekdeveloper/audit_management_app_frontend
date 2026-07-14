@@ -163,9 +163,6 @@ class AppConstants {
   static String? auditParameterDescription(String name) =>
       auditParameterDescriptions[name];
 
-  // Action plan deadline (days from audit date)
-  static const int actionPlanDeadlineDays = 8;
-
   static const String notificationEmail = 'email';
   static const String notificationReminder = 'reminder';
   static const String notificationSuccess = 'success';

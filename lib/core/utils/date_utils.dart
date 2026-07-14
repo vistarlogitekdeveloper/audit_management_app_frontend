@@ -50,10 +50,6 @@ class AppDateUtils {
     return date.isAfter(DateTime(today.year, today.month, today.day));
   }
 
-  /// Calculate action plan deadline (auditDate + 8 days)
-  static DateTime actionPlanDeadline(DateTime auditDate) =>
-      auditDate.add(const Duration(days: 8));
-
   static DateTime normalizeDate(DateTime date) =>
       DateTime(date.year, date.month, date.day);
 }

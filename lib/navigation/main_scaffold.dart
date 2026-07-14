@@ -17,6 +17,7 @@ import '../features/notifications/providers/notification_provider.dart';
 import '../features/action_plan_tracker/providers/action_plan_tracker_provider.dart';
 import '../features/projects/providers/project_provider.dart';
 import '../features/users/providers/user_provider.dart';
+import '../features/audit_questions/providers/audit_question_provider.dart';
 
 /// Maps drilldown/detail routes to the nav item they originated from, so the
 /// sidebar / bottom-nav highlight stays anchored when the user opens a record
@@ -174,6 +175,7 @@ class MainScaffold extends ConsumerWidget {
           _NavItem('Audit Calendar', '/admin/calendar', Icons.calendar_month_outlined),
           _NavItem('Users', '/admin/users', Icons.group_outlined),
           _NavItem('Projects', '/admin/projects', Icons.location_city_outlined),
+          _NavItem('Audit Questions', '/admin/audit-questions', Icons.rule_folder_outlined),
           _NavItem('Reports & Analytics', '/admin/reports', Icons.insights_outlined),
           _NavItem('Auditor > My Audits', '/auditor/dashboard', Icons.assignment_outlined),
           _NavItem('Auditor > Perform Audit', '/auditor/perform-audit', Icons.play_circle_outline),
@@ -211,6 +213,7 @@ class MainScaffold extends ConsumerWidget {
     if (location.contains('/admin/calendar')) return 'Audit Calendar';
     if (location.contains('/admin/users')) return 'User Management';
     if (location.contains('/admin/projects')) return 'Project Management';
+    if (location.contains('/admin/audit-questions')) return 'Audit Questions';
     if (location.contains('/admin/reports')) return 'Reports & Analytics';
     if (location.contains('/auditor/dashboard')) return 'Auditor Dashboard';
     if (location.contains('/auditor/history')) return 'My Audit History';
@@ -251,6 +254,8 @@ class MainScaffold extends ConsumerWidget {
       ref.read(userProvider).fetchUsers();
     } else if (location.contains('/admin/projects')) {
       ref.read(projectAdminProvider).fetchProjects();
+    } else if (location.contains('/admin/audit-questions')) {
+      ref.read(auditQuestionAdminProvider).fetch();
     } else if (location.contains('/owner/action-plans') ||
         location.contains('/cluster/action-plans') ||
         location.contains('/auditor/action-plans')) {

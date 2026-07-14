@@ -12,6 +12,7 @@ import '../../../core/widgets/app_dialog.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
+import '../../audit_questions/providers/audit_question_provider.dart';
 import '../providers/audit_sheet_provider.dart';
 import 'audit_sheet_row_widget.dart';
 
@@ -104,19 +105,30 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
       return const LoadingState(message: 'Loading audit sheet…');
     }
 
-    // Group parameters into sections
+    // Dynamic "what to check for" descriptions from the admin-managed master
+    // list. Empty while the fetch is in flight or when a name has no override;
+    // the row widget falls back to the bundled constant in those cases.
+    final descByName = descriptionMapFrom(
+      ref.watch(activeAuditQuestionsProvider).valueOrNull ?? const [],
+    );
+
+    // Group parameters into sections by their stable param_index. The three
+    // named ranges cover the original 24 points; any admin-added point (index
+    // 25+) lands in "Additional Points" so it always renders — otherwise the
+    // auditor couldn't see or complete it. Empty sections are dropped below.
     final sections = {
       'Safety & Work Environment':
           sheet.parameters.where((p) => p.index >= 1 && p.index <= 9).toList(),
       'Operations & Documentation':
-          sheet.parameters
-              .where((p) => p.index >= 10 && p.index <= 16)
-              .toList(),
+          sheet.parameters.where((p) => p.index >= 10 && p.index <= 16).toList(),
       'Quality, Training & KAIZEN':
-          sheet.parameters
-              .where((p) => p.index >= 17 && p.index <= 24)
-              .toList(),
+          sheet.parameters.where((p) => p.index >= 17 && p.index <= 24).toList(),
     };
+    final additional =
+        sheet.parameters.where((p) => p.index < 1 || p.index > 24).toList();
+    if (additional.isNotEmpty) {
+      sections['Additional Points'] = additional;
+    }
 
     final progress =
         sheet.parameters.isEmpty
@@ -190,7 +202,9 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
               children: [
                 _InfoBar(sheet: sheet),
                 const SizedBox(height: 16),
-                ...sections.entries.map((entry) {
+                ...sections.entries
+                    .where((entry) => entry.value.isNotEmpty)
+                    .map((entry) {
                   final sectionName = entry.key;
                   final items = entry.value;
                   final isExpanded = _expandedSections.contains(sectionName);
@@ -218,6 +232,7 @@ class _AuditSheetScreenState extends ConsumerState<AuditSheetScreen> {
                             return AuditRowWidget(
                               index: parameter.index,
                               parameterName: parameter.name,
+                              description: descByName[parameter.name],
                               selectedResult: row?.result,
                               remarkController: controller,
                               showValidation: _showValidation,

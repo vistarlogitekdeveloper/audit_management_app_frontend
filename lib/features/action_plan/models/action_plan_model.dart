@@ -5,7 +5,7 @@ class ActionPlanModel {
     required this.id,
     required this.auditSheetId,
     required this.items,
-    required this.dueDate,
+    this.dueDate,
     this.status = 'pending',
     this.submittedAt,
     this.daysRemaining,
@@ -17,7 +17,11 @@ class ActionPlanModel {
   final String id;
   final String auditSheetId;
   final List<ActionItemModel> items;
-  final DateTime dueDate;
+
+  /// Overall plan deadline as supplied by the backend (`due_date`). Null when
+  /// the backend hasn't set one — the UI hides the deadline chip/stat in that
+  /// case rather than inventing a date.
+  final DateTime? dueDate;
   final String status;
   final DateTime? submittedAt;
   final int? daysRemaining;
@@ -53,11 +57,10 @@ class ActionPlanModel {
           .map((item) => ActionItemModel.fromJson(item as Map<String, dynamic>))
           .toList(),
       dueDate: DateTime.tryParse(
-            json['due_date']?.toString() ??
-                json['dueDate']?.toString() ??
-                '',
-          ) ??
-          DateTime.now().add(const Duration(days: 8)),
+        json['due_date']?.toString() ??
+            json['dueDate']?.toString() ??
+            '',
+      ),
       status: json['status']?.toString() ?? 'pending',
       submittedAt: DateTime.tryParse(
         json['submitted_at']?.toString() ??

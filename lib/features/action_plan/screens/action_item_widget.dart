@@ -23,7 +23,6 @@ class ActionItemWidget extends StatefulWidget {
     super.key,
     required this.item,
     required this.onChanged,
-    required this.deadline,
     this.mode = ActionItemMode.edit,
     this.onReview,
     this.reviewing = false,
@@ -33,9 +32,6 @@ class ActionItemWidget extends StatefulWidget {
 
   final ActionItemModel item;
   final ValueChanged<ActionItemModel> onChanged;
-
-  /// Latest acceptable due date (audit_date + 8 days) for any item.
-  final DateTime deadline;
 
   /// Controls which inputs / buttons render (see [ActionItemMode]).
   final ActionItemMode mode;
@@ -108,9 +104,6 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final overDeadline =
-        widget.item.dueDate.isAfter(widget.deadline.add(const Duration(days: 1)));
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: AppPanel(
@@ -149,8 +142,6 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
             if (_isEdit)
               _EditFields(
                 item: widget.item,
-                deadline: widget.deadline,
-                overDeadline: overDeadline,
                 correctiveController: _correctiveController,
                 personController: _personController,
                 dueDateController: _dueDateController,
@@ -355,8 +346,6 @@ class _LabelValueWidget extends StatelessWidget {
 class _EditFields extends StatelessWidget {
   const _EditFields({
     required this.item,
-    required this.deadline,
-    required this.overDeadline,
     required this.correctiveController,
     required this.personController,
     required this.dueDateController,
@@ -365,8 +354,6 @@ class _EditFields extends StatelessWidget {
   });
 
   final ActionItemModel item;
-  final DateTime deadline;
-  final bool overDeadline;
   final TextEditingController correctiveController;
   final TextEditingController personController;
   final TextEditingController dueDateController;
@@ -391,17 +378,17 @@ class _EditFields extends StatelessWidget {
           onChanged(item.copyWith(responsiblePerson: value)),
     );
     final due = AppInput(
-      label: overDeadline
-          ? 'Due date (≤ ${AppDateUtils.formatDisplay(deadline)})'
-          : 'Due date',
+      label: 'Due date',
       controller: dueDateController,
       isReadOnly: true,
       dense: true,
       suffixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
       onTap: () async {
+        // No day-limit is enforced — the owner can pick any date from today
+        // out to five years ahead. An existing past due date is clamped up to
+        // today so the picker can open on a valid initial date.
         final firstDate = DateTime.now();
-        final lastDate =
-            deadline.isBefore(firstDate) ? firstDate : deadline;
+        final lastDate = firstDate.add(const Duration(days: 365 * 5));
         final initial = item.dueDate.isBefore(firstDate)
             ? firstDate
             : (item.dueDate.isAfter(lastDate) ? lastDate : item.dueDate);

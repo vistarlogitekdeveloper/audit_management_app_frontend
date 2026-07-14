@@ -25,6 +25,7 @@ class AuditRowWidget extends StatefulWidget {
     super.key,
     required this.index,
     required this.parameterName,
+    this.description,
     required this.selectedResult,
     required this.onResultChanged,
     required this.remarkController,
@@ -39,6 +40,11 @@ class AuditRowWidget extends StatefulWidget {
 
   final int index;
   final String parameterName;
+
+  /// The admin-managed "what to check for" text for this point. When null the
+  /// widget falls back to the bundled [AppConstants] description keyed by name.
+  final String? description;
+
   final String? selectedResult;
   final ValueChanged<String> onResultChanged;
   final TextEditingController remarkController;
@@ -70,6 +76,7 @@ class _AuditRowWidgetState extends State<AuditRowWidget> {
   /// Null when the parameter has no description, in which case the line is
   /// hidden entirely.
   String? get _description =>
+      widget.description ??
       AppConstants.auditParameterDescription(widget.parameterName);
 
   bool get _answered => widget.selectedResult != null;

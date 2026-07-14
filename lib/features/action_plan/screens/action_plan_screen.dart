@@ -12,6 +12,7 @@ import '../../../core/utils/helpers.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../../core/widgets/page_chrome.dart';
+import '../../audit_questions/providers/audit_question_provider.dart';
 import '../../audit_sheet/providers/audit_sheet_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../users/providers/user_provider.dart';
@@ -114,16 +115,26 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
         if (p.remark.trim().isNotEmpty) p.name: p.remark.trim(),
     };
 
-    final auditDate = sheet?.auditDate ?? DateTime.now();
-    final deadline = plan?.dueDate ?? AppDateUtils.actionPlanDeadline(auditDate);
+    // Deadline is whatever the backend set on the plan (`due_date`). Null when
+    // there's no plan yet or the backend didn't set one — the header hides the
+    // deadline chip/stat in that case. No client-side day-limit is applied.
+    final DateTime? deadline = plan?.dueDate;
 
-    // Render items in the same top-to-bottom sequence as the audit sheet
-    // (the 24-parameter list in AppConstants). The backend returns items in
-    // creation order, which doesn't match the audit flow and leaves the
-    // owner scanning around to find the next fail. Sort by parameter rank
-    // here without mutating the provider's list — updateItem still uses the
+    // Render items in the same top-to-bottom sequence as the audit sheet.
+    // The backend returns items in creation order, which doesn't match the
+    // audit flow and leaves the owner scanning around to find the next fail.
+    // Rank by the admin-managed question order (falling back to the bundled
+    // constant while the fetch is in flight / for names not found). Sorting
+    // here doesn't mutate the provider's list — updateItem still uses the
     // original index.
+    final questions =
+        ref.watch(activeAuditQuestionsProvider).valueOrNull ?? const [];
+    final orderByName = {
+      for (final q in questions) q.name: q.sortOrder,
+    };
     int rank(String name) {
+      final order = orderByName[name];
+      if (order != null) return order;
       final i = AppConstants.auditParameters.indexOf(name);
       return i < 0 ? AppConstants.auditParameters.length : i;
     }
@@ -171,7 +182,6 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
               return ActionItemWidget(
                 key: ValueKey(item.id ?? 'new-$index'),
                 item: item,
-                deadline: deadline,
                 mode: itemMode,
                 reviewing: provider.isReviewing,
                 responsiblePersonSuggestions: responsiblePersonSuggestions,
@@ -343,7 +353,7 @@ class _HeaderBar extends StatelessWidget {
   final bool planClosed;
   final ActionPlanModel? plan;
   final int failCount;
-  final DateTime deadline;
+  final DateTime? deadline;
   final int pendingCount;
   final int approvedCount;
   final int rejectedCount;
@@ -351,7 +361,7 @@ class _HeaderBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAuditor = mode == ActionItemMode.review;
-    final remaining = AppDateUtils.daysRemaining(deadline);
+    final deadline = this.deadline;
     final tone = planClosed
         ? AppColors.success
         : (isAuditor ? AppColors.primary : AppColors.danger);
@@ -397,8 +407,10 @@ class _HeaderBar extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
-              _DeadlineChip(remaining: remaining),
+              if (deadline != null) ...[
+                const SizedBox(width: 10),
+                _DeadlineChip(remaining: AppDateUtils.daysRemaining(deadline)),
+              ],
             ],
           ),
           const SizedBox(height: 10),
@@ -411,11 +423,12 @@ class _HeaderBar extends StatelessWidget {
                 value: '$failCount',
                 color: AppColors.danger,
               ),
-              _MiniStat(
-                label: 'Deadline',
-                value: AppDateUtils.formatDisplay(deadline),
-                color: AppColors.warning,
-              ),
+              if (deadline != null)
+                _MiniStat(
+                  label: 'Deadline',
+                  value: AppDateUtils.formatDisplay(deadline),
+                  color: AppColors.warning,
+                ),
               _MiniStat(
                 label: 'Pending',
                 value: '$pendingCount',

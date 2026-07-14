@@ -45,15 +45,6 @@ class Validators {
     return null;
   }
 
-  static String? validateWithinDays(DateTime? value, int days, DateTime from) {
-    if (value == null) return 'Date is required';
-    final deadline = from.add(Duration(days: days));
-    if (value.isAfter(deadline)) {
-      return 'Date must be within $days days';
-    }
-    return null;
-  }
-
   static String? validateSelection(String? value, {String fieldName = 'Selection'}) {
     if (value == null || value.trim().isEmpty) {
       return '$fieldName is required';

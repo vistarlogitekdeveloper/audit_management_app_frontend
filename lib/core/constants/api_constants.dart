@@ -41,6 +41,11 @@ class ApiConstants {
   static const String ownerDashboard = '/owner/dashboard';
   static const String auditorDashboard = '/auditor/dashboard';
 
+  // Audit Questions (admin-managed master list of audit points)
+  static const String auditQuestions = '/audit-questions';
+  static String auditQuestionById(String id) => '/audit-questions/$id';
+  static const String reorderAuditQuestions = '/audit-questions/reorder';
+
   // Audit Sheets
   static String auditSheet(String auditPlanId) =>
       '/audit-sheets/$auditPlanId';
