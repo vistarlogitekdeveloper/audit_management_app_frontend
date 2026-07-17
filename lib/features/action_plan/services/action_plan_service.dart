@@ -51,6 +51,39 @@ class ActionPlanService {
     return ActionPlanModel.fromJson(_apiService.extractObject(response));
   }
 
+  /// Uploads one optional evidence file against a single action-plan point.
+  /// The backend field name must be exactly `file` (multer .single('file')).
+  /// Returns the created attachment (with its id + presigned display URL).
+  /// [itemId] must be a persisted action item id.
+  Future<ActionItemAttachment> uploadItemAttachment({
+    required String planId,
+    required String itemId,
+    required List<int> bytes,
+    String? filename,
+    String? mimeType,
+  }) async {
+    final response = await _apiService.postMultipart(
+      ApiConstants.actionPlanItemAttachments(planId, itemId),
+      fileField: 'file',
+      bytes: bytes,
+      filename: filename,
+      mimeType: mimeType,
+    );
+    return ActionItemAttachment.fromJson(_apiService.extractObject(response));
+  }
+
+  /// Deletes one previously-uploaded attachment. The backend only lets the
+  /// uploading owner (or an admin) remove it.
+  Future<void> deleteItemAttachment({
+    required String planId,
+    required String itemId,
+    required String attachmentId,
+  }) async {
+    await _apiService.delete(
+      ApiConstants.actionPlanItemAttachment(planId, itemId, attachmentId),
+    );
+  }
+
   /// Auditor verdict on a single item. [reviewStatus] is 'approved' or
   /// 'rejected'; [remark] is required when rejecting. Returns the updated
   /// item only (same shape as items in GET /action-plans/:auditSheetId).

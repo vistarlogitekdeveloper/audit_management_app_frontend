@@ -9,6 +9,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_input.dart';
 import '../../../core/widgets/page_chrome.dart';
+import '../../../core/widgets/photo_capture_modal.dart';
 import '../../../core/widgets/status_pill.dart';
 import '../models/action_plan_model.dart';
 
@@ -28,10 +29,30 @@ class ActionItemWidget extends StatefulWidget {
     this.reviewing = false,
     this.auditObservation,
     this.responsiblePersonSuggestions = const [],
+    this.onUploadAttachment,
+    this.onRemoveAttachment,
+    this.uploadingAttachment = false,
   });
 
   final ActionItemModel item;
   final ValueChanged<ActionItemModel> onChanged;
+
+  /// Uploads one optional evidence file for this point. Non-null enables the
+  /// "Add attachment" control (owner, editable item, persisted item id).
+  /// Returns true on success; may throw so the capture modal shows the error
+  /// inline and stays open for a retry.
+  final Future<bool> Function(
+    Uint8List bytes,
+    String filename,
+    String mimeType,
+  )? onUploadAttachment;
+
+  /// Removes a previously-uploaded attachment by id. Non-null enables the ×
+  /// on each attachment thumbnail.
+  final Future<void> Function(String attachmentId)? onRemoveAttachment;
+
+  /// True while an attachment upload for this point is in flight.
+  final bool uploadingAttachment;
 
   /// Controls which inputs / buttons render (see [ActionItemMode]).
   final ActionItemMode mode;
@@ -102,6 +123,29 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
   bool get _isEdit => widget.mode == ActionItemMode.edit;
   bool get _isReview => widget.mode == ActionItemMode.review;
 
+  /// Attaching is offered only when the owner is editing this (persisted)
+  /// point and the parent wired an upload handler. Unpersisted items (no id)
+  /// can't receive attachments — the endpoint is keyed by item id.
+  bool get _canAttach =>
+      _isEdit &&
+      widget.item.id != null &&
+      widget.onUploadAttachment != null;
+
+  /// Opens the capture modal and hands the bytes to the parent uploader.
+  /// The modal closes on a non-null return (true) and surfaces any thrown
+  /// error inline so the owner can retry without re-picking.
+  Future<void> _addAttachment(BuildContext context) async {
+    final upload = widget.onUploadAttachment;
+    if (upload == null) return;
+    await PhotoCaptureModal.show<bool>(
+      context,
+      title: 'Attachment · ${widget.item.parameterName}',
+      front: false,
+      onSubmit: (bytes, filename, mimeType) =>
+          upload(bytes, filename, mimeType),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -150,6 +194,21 @@ class _ActionItemWidgetState extends State<ActionItemWidget> {
               )
             else
               _ReadOnlyFields(item: widget.item),
+
+            // Optional owner attachments per point. The add/remove controls
+            // show only when this card is editable and the item is persisted
+            // (has an id); otherwise the strip is view-only so auditors and
+            // others can still see the evidence.
+            if (_canAttach || widget.item.attachments.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _OwnerAttachmentsBlock(
+                attachments: widget.item.attachments,
+                editable: _canAttach,
+                uploading: widget.uploadingAttachment,
+                onAdd: () => _addAttachment(context),
+                onRemove: widget.onRemoveAttachment,
+              ),
+            ],
 
             // Auditor review controls — only render when the screen is in
             // review mode AND the parent has wired an onReview callback.
@@ -737,6 +796,192 @@ class _EvidenceThumbnail extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(5),
           child: _buildImage(),
+        ),
+      ),
+    );
+  }
+}
+
+/// Optional owner evidence-file strip under each action-plan point. When
+/// [editable], the owner gets an "Add attachment" button and a × on each
+/// file; otherwise it's a read-only strip so auditors/others can see the
+/// evidence.
+class _OwnerAttachmentsBlock extends StatelessWidget {
+  const _OwnerAttachmentsBlock({
+    required this.attachments,
+    required this.editable,
+    required this.uploading,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final List<ActionItemAttachment> attachments;
+  final bool editable;
+  final bool uploading;
+  final VoidCallback onAdd;
+  final Future<void> Function(String attachmentId)? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.attach_file_rounded,
+                  size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                editable ? 'Attachments (optional)' : 'Attachments',
+                style: AppTextStyles.medium12
+                    .copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          if (attachments.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final a in attachments)
+                  _AttachmentTile(
+                    attachment: a,
+                    onRemove: (editable && onRemove != null)
+                        ? () => onRemove!(a.id)
+                        : null,
+                  ),
+              ],
+            ),
+          ],
+          if (editable) ...[
+            const SizedBox(height: 8),
+            _AddAttachmentButton(uploading: uploading, onTap: onAdd),
+          ] else if (attachments.isEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'No attachments added.',
+              style:
+                  AppTextStyles.body12.copyWith(color: AppColors.textMuted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One attachment in the strip: an image thumbnail (reusing
+/// [_EvidenceThumbnail], with tap-to-zoom) or a file icon for non-images
+/// (e.g. PDFs), plus an optional × to remove it.
+class _AttachmentTile extends StatelessWidget {
+  const _AttachmentTile({required this.attachment, required this.onRemove});
+
+  final ActionItemAttachment attachment;
+  final VoidCallback? onRemove;
+
+  bool get _isImage {
+    final m = attachment.mimeType?.toLowerCase() ?? '';
+    if (m.startsWith('image/')) return true;
+    if (m.isNotEmpty) return false;
+    final u = attachment.url.toLowerCase();
+    return u.startsWith('data:image') ||
+        u.contains('.jpg') ||
+        u.contains('.jpeg') ||
+        u.contains('.png') ||
+        u.contains('.webp');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget tile = _isImage
+        ? _EvidenceThumbnail(url: attachment.url)
+        : Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppColors.border),
+              color: AppColors.surface3,
+            ),
+            alignment: Alignment.center,
+            child: Icon(Icons.description_outlined,
+                size: 24, color: AppColors.textSecondary),
+          );
+    if (onRemove == null) return tile;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        tile,
+        Positioned(
+          top: -6,
+          right: -6,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: AppColors.danger,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.white, width: 1.5),
+              ),
+              child: const Icon(Icons.close, size: 12, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AddAttachmentButton extends StatelessWidget {
+  const _AddAttachmentButton({required this.uploading, required this.onTap});
+
+  final bool uploading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: uploading ? null : onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(8),
+          border:
+              Border.all(color: AppColors.primary.withValues(alpha: 0.30)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (uploading)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.primary),
+              )
+            else
+              const Icon(Icons.add_photo_alternate_outlined,
+                  size: 16, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Text(
+              uploading ? 'Uploading…' : 'Add attachment',
+              style:
+                  AppTextStyles.medium13.copyWith(color: AppColors.primary),
+            ),
+          ],
         ),
       ),
     );

@@ -67,6 +67,13 @@ class ApiConstants {
   static String actionPlanById(String id) => '/action-plans/$id';
   static String actionPlanItem(String id, String itemId) =>
       '/action-plans/$id/items/$itemId';
+  /// Owner evidence files for one action-plan point. Multipart POST with the
+  /// file under field name `file`; DELETE by attachment id.
+  static String actionPlanItemAttachments(String planId, String itemId) =>
+      '/action-plans/$planId/items/$itemId/attachments';
+  static String actionPlanItemAttachment(
+          String planId, String itemId, String attachmentId) =>
+      '/action-plans/$planId/items/$itemId/attachments/$attachmentId';
   /// Auditor approves / rejects a single item with a remark.
   static String actionPlanItemReview(String planId, String itemId) =>
       '/action-plans/$planId/items/$itemId/review';

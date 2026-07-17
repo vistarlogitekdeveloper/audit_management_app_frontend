@@ -31,6 +31,13 @@ class ActionPlanProvider extends ChangeNotifier {
   /// every Approve/Reject tap.
   bool isReviewing = false;
 
+  /// Ids of action items with an attachment upload in flight, so each point's
+  /// "Add" control can show a spinner without blocking the rest of the form.
+  final Set<String> _uploadingItemIds = {};
+
+  bool isUploadingAttachment(String? itemId) =>
+      itemId != null && _uploadingItemIds.contains(itemId);
+
   /// Loads an existing action plan (created by acknowledge). Caller can pass
   /// [fallbackItems] (built from the audit sheet's fail rows) to display
   /// before the backend has the plan persisted, but the plan itself must
@@ -63,6 +70,67 @@ class ActionPlanProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Uploads an optional evidence file for one action-plan point and, on
+  /// success, appends it to that item's attachment strip. [itemId] must be a
+  /// persisted item id (the caller only offers the control once it is).
+  Future<void> uploadAttachment({
+    required String itemId,
+    required List<int> bytes,
+    String? filename,
+    String? mimeType,
+  }) async {
+    final plan = currentPlan;
+    if (plan == null || plan.id.isEmpty) {
+      throw StateError('No action plan loaded.');
+    }
+    _uploadingItemIds.add(itemId);
+    notifyListeners();
+    try {
+      final attachment = await _service.uploadItemAttachment(
+        planId: plan.id,
+        itemId: itemId,
+        bytes: bytes,
+        filename: filename,
+        mimeType: mimeType,
+      );
+      final idx = items.indexWhere((i) => i.id == itemId);
+      if (idx >= 0) {
+        items[idx] = items[idx].copyWith(
+          attachments: [...items[idx].attachments, attachment],
+        );
+      }
+    } finally {
+      _uploadingItemIds.remove(itemId);
+      notifyListeners();
+    }
+  }
+
+  /// Removes a previously-uploaded attachment from a point and the strip.
+  Future<void> removeAttachment({
+    required String itemId,
+    required String attachmentId,
+  }) async {
+    final plan = currentPlan;
+    if (plan == null || plan.id.isEmpty) {
+      throw StateError('No action plan loaded.');
+    }
+    await _service.deleteItemAttachment(
+      planId: plan.id,
+      itemId: itemId,
+      attachmentId: attachmentId,
+    );
+    final idx = items.indexWhere((i) => i.id == itemId);
+    if (idx >= 0) {
+      items[idx] = items[idx].copyWith(
+        attachments: items[idx]
+            .attachments
+            .where((a) => a.id != attachmentId)
+            .toList(),
+      );
+      notifyListeners();
+    }
+  }
+
   Future<void> save() async {
     final plan = currentPlan;
     if (plan == null || plan.id.isEmpty) {
@@ -74,11 +142,26 @@ class ActionPlanProvider extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      currentPlan = await _service.updateActionPlan(
+      final updated = await _service.updateActionPlan(
         planId: plan.id,
         items: items,
       );
-      items = currentPlan!.items.isNotEmpty ? currentPlan!.items : items;
+      currentPlan = updated;
+      // The update response doesn't echo owner attachments (they're managed
+      // via their own endpoints and live in a separate table). Carry them
+      // over by audit_parameter_id so the strip doesn't blank out after a
+      // draft save — they remain persisted in the DB regardless.
+      final attByParam = {
+        for (final it in items) it.auditParameterId: it.attachments,
+      };
+      final incoming = updated.items.isNotEmpty ? updated.items : items;
+      items = incoming.map((it) {
+        final prior = attByParam[it.auditParameterId];
+        if (prior != null && prior.isNotEmpty && it.attachments.isEmpty) {
+          return it.copyWith(attachments: prior);
+        }
+        return it;
+      }).toList();
       _ref.invalidate(ownerDashboardProvider);
     } catch (e) {
       error = e.toString();

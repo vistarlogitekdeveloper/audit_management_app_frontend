@@ -198,6 +198,27 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
                     ? (status, remark) =>
                         _reviewItem(item.id, status, remark)
                     : null,
+                uploadingAttachment:
+                    provider.isUploadingAttachment(item.id),
+                onUploadAttachment:
+                    (itemMode == ActionItemMode.edit && item.id != null)
+                        ? (bytes, filename, mimeType) async {
+                            await ref
+                                .read(actionPlanProvider)
+                                .uploadAttachment(
+                                  itemId: item.id!,
+                                  bytes: bytes,
+                                  filename: filename,
+                                  mimeType: mimeType,
+                                );
+                            return true;
+                          }
+                        : null,
+                onRemoveAttachment:
+                    (itemMode == ActionItemMode.edit && item.id != null)
+                        ? (attachmentId) =>
+                            _removeAttachment(item.id!, attachmentId)
+                        : null,
               );
             }),
             const SizedBox(height: 10),
@@ -268,6 +289,26 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
             ? 'Item approved.'
             : 'Item rejected — owner will be notified.',
       );
+    } catch (e) {
+      if (!mounted) return;
+      AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(e));
+    }
+  }
+
+  Future<void> _removeAttachment(String itemId, String attachmentId) async {
+    final confirm = await AppHelpers.showConfirmationDialog(
+      context: context,
+      title: 'Remove attachment',
+      message: 'Remove this attachment from the point?',
+      confirmLabel: 'Remove',
+      confirmColor: AppColors.danger,
+    );
+    if (!confirm || !mounted) return;
+    try {
+      await ref.read(actionPlanProvider).removeAttachment(
+            itemId: itemId,
+            attachmentId: attachmentId,
+          );
     } catch (e) {
       if (!mounted) return;
       AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(e));

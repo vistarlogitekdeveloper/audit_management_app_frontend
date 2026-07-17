@@ -105,6 +105,41 @@ class ReviewerRef {
   }
 }
 
+/// A file the project owner attached to a single action-plan point as
+/// evidence of corrective action. Stored server-side in the
+/// `action_item_attachments` table; [url] is the presigned HTTPS link the
+/// backend returns for display, [id] is used to delete it.
+class ActionItemAttachment {
+  const ActionItemAttachment({
+    required this.id,
+    required this.url,
+    this.fileName,
+    this.mimeType,
+  });
+
+  final String id;
+
+  /// Presigned HTTPS (or data:) URL for display. The raw `s3://` `file_url`
+  /// is never used for rendering.
+  final String url;
+  final String? fileName;
+  final String? mimeType;
+
+  factory ActionItemAttachment.fromJson(Map<String, dynamic> json) {
+    final url = json['presigned_url']?.toString() ??
+        json['signed_url']?.toString() ??
+        json['url']?.toString() ??
+        json['file_url']?.toString() ??
+        '';
+    return ActionItemAttachment(
+      id: json['id']?.toString() ?? '',
+      url: url,
+      fileName: json['file_name']?.toString() ?? json['fileName']?.toString(),
+      mimeType: json['mime_type']?.toString() ?? json['mimeType']?.toString(),
+    );
+  }
+}
+
 class ActionItemModel {
   const ActionItemModel({
     this.id,
@@ -120,6 +155,7 @@ class ActionItemModel {
     this.reviewedBy,
     this.reviewedAt,
     this.evidencePhotoUrls = const [],
+    this.attachments = const [],
   });
 
   /// Backend ActionItem id (null for items not yet persisted).
@@ -162,6 +198,10 @@ class ActionItemModel {
   /// Auditor's original evidence photos from the audit sheet.
   final List<String> evidencePhotoUrls;
 
+  /// Owner-added evidence files for this point (optional). Managed via the
+  /// per-item attachment endpoints, independent of the plan submit payload.
+  final List<ActionItemAttachment> attachments;
+
   bool get isApproved => reviewStatus == 'approved';
   bool get isRejected => reviewStatus == 'rejected';
 
@@ -179,6 +219,7 @@ class ActionItemModel {
     ReviewerRef? reviewedBy,
     DateTime? reviewedAt,
     List<String>? evidencePhotoUrls,
+    List<ActionItemAttachment>? attachments,
   }) {
     return ActionItemModel(
       id: id ?? this.id,
@@ -194,6 +235,7 @@ class ActionItemModel {
       reviewedBy: reviewedBy ?? this.reviewedBy,
       reviewedAt: reviewedAt ?? this.reviewedAt,
       evidencePhotoUrls: evidencePhotoUrls ?? this.evidencePhotoUrls,
+      attachments: attachments ?? this.attachments,
     );
   }
 
@@ -239,7 +281,27 @@ class ActionItemModel {
         json['reviewed_at']?.toString() ?? json['reviewedAt']?.toString() ?? '',
       ),
       evidencePhotoUrls: _parseEvidencePhotoUrls(parameter ?? {}),
+      attachments: _parseAttachments(json['attachments']),
     );
+  }
+
+  /// Parses the eager-loaded `attachments` array from the plan-detail
+  /// response. Keeps only rows with an id (needed to delete). Returns an
+  /// empty list for any other shape.
+  static List<ActionItemAttachment> _parseAttachments(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <ActionItemAttachment>[];
+    for (final entry in raw) {
+      if (entry is Map<String, dynamic>) {
+        final att = ActionItemAttachment.fromJson(entry);
+        if (att.id.isNotEmpty) out.add(att);
+      } else if (entry is Map) {
+        final att =
+            ActionItemAttachment.fromJson(Map<String, dynamic>.from(entry));
+        if (att.id.isNotEmpty) out.add(att);
+      }
+    }
+    return out;
   }
 
   static List<String> _parseEvidencePhotoUrls(Map<String, dynamic> json) {
