@@ -15,7 +15,10 @@ import '../../audit_plan/providers/audit_plan_provider.dart';
 import '../../dashboard/models/dashboard_model.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../dashboard/widgets/pass_rate_chart.dart';
+import '../models/report_analytics_model.dart';
+import '../providers/report_analytics_provider.dart';
 import '../services/report_export_client.dart';
+import '../widgets/analytics_charts.dart';
 
 class AdminReportsScreen extends ConsumerStatefulWidget {
   const AdminReportsScreen({super.key});
@@ -57,8 +60,12 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
     final stats = dashboard.stats;
     final wide = MediaQuery.sizeOf(context).width >= 1100;
 
-    final passRateItems = dashboard.clusterPassRates
-        .map((c) => {'name': c.clusterName, 'percent': c.passRate})
+    // Real per-cluster / per-project performance, computed server-side over the
+    // audit sheets (the dashboard's clusterPassRates is an empty stub).
+    final analyticsAsync = ref.watch(reportAnalyticsProvider(_analyticsQuery()));
+    final analytics = analyticsAsync.valueOrNull;
+    final passRateItems = (analytics?.clusters ?? [])
+        .map((c) => {'name': c.name, 'percent': c.passPercent})
         .toList();
 
     return Column(
@@ -107,6 +114,14 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
         const SizedBox(height: 14),
         _buildSummaryCards(stats, filteredPlans),
         const SizedBox(height: 14),
+        _buildProjectPerformancePanel(analyticsAsync),
+        const SizedBox(height: 14),
+        _buildPointAnalysisPanel(analyticsAsync),
+        const SizedBox(height: 14),
+        if (analytics != null && analytics.projects.isNotEmpty) ...[
+          _buildChartsSection(analytics, wide),
+          const SizedBox(height: 14),
+        ],
         if (wide)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,6 +519,404 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
       if (_clusterId != null) 'cluster_manager_id': _clusterId,
       if (_statusFilter != 'all') 'status': _statusFilter,
     };
+  }
+
+  AnalyticsQuery _analyticsQuery() {
+    return AnalyticsQuery(
+      fromDate: _dateRange?.start.toIso8601String().split('T').first,
+      toDate: _dateRange?.end.toIso8601String().split('T').first,
+      projectId: _projectId,
+      clusterManagerId: _clusterId,
+      status: _statusFilter == 'all' ? null : _statusFilter,
+    );
+  }
+
+  Color _perfColor(double pct) {
+    if (pct >= 85) return AppColors.success;
+    if (pct >= 60) return AppColors.warning;
+    return AppColors.danger;
+  }
+
+  /// The four graphs mirrored from the consolidated analysis workbook:
+  /// Pass-vs-Fail by project (column), Combined score (pie), Pareto of failure
+  /// points (bar + cumulative line), and Pass-vs-Fail by audit point (bar).
+  Widget _buildChartsSection(ReportAnalytics a, bool wide) {
+    final byProject = AppPanel(
+      title: 'Pass vs fail by project',
+      icon: Icons.bar_chart_rounded,
+      child: PassFailByProjectChart(projects: a.projects),
+    );
+    final combined = AppPanel(
+      title: 'Combined score',
+      icon: Icons.pie_chart_outline,
+      child: CombinedScorePie(
+        pass: a.overall.totalPass,
+        fail: a.overall.totalFail,
+      ),
+    );
+    final pareto = AppPanel(
+      title: 'Pareto — failure points',
+      icon: Icons.show_chart_rounded,
+      child: ParetoChart(points: a.points),
+    );
+    final byPoint = AppPanel(
+      title: 'Pass vs fail by audit point',
+      icon: Icons.stacked_bar_chart_rounded,
+      child: PassFailByPointChart(points: a.points),
+    );
+
+    return Column(
+      children: [
+        if (wide)
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 3, child: byProject),
+                const SizedBox(width: 14),
+                Expanded(flex: 2, child: combined),
+              ],
+            ),
+          )
+        else ...[
+          byProject,
+          const SizedBox(height: 14),
+          combined,
+        ],
+        const SizedBox(height: 14),
+        pareto,
+        const SizedBox(height: 14),
+        byPoint,
+      ],
+    );
+  }
+
+  Widget _buildProjectPerformancePanel(AsyncValue<ReportAnalytics> async) {
+    return AppPanel(
+      title: 'Project performance',
+      icon: Icons.leaderboard_outlined,
+      child: async.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 28),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (e, _) => Row(
+          children: [
+            Icon(Icons.error_outline, color: AppColors.danger, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('Couldn\'t load performance analytics.',
+                  style: AppTextStyles.body13),
+            ),
+            TextButton(
+              onPressed: () =>
+                  ref.invalidate(reportAnalyticsProvider(_analyticsQuery())),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+        data: (a) {
+          if (a.projects.isEmpty) {
+            return const EmptyPanel(
+                message: 'No performance data for the current filter.');
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _perfHeader(a),
+              const SizedBox(height: 14),
+              ...a.projects
+                  .asMap()
+                  .entries
+                  .map((e) => _perfRow(e.key + 1, e.value)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _perfHeader(ReportAnalytics a) {
+    final top = a.topProject;
+    final bottom = a.bottomProject;
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _perfPill(
+          icon: Icons.percent_rounded,
+          label: 'Overall pass',
+          value: '${a.overall.avgPassPercent.toStringAsFixed(1)}%',
+          color: _perfColor(a.overall.avgPassPercent),
+        ),
+        if (top != null)
+          _perfPill(
+            icon: Icons.emoji_events_outlined,
+            label: 'Top: ${top.name}',
+            value: '${top.passPercent.toStringAsFixed(1)}%',
+            color: AppColors.success,
+          ),
+        if (bottom != null && bottom.id != top?.id)
+          _perfPill(
+            icon: Icons.trending_down_rounded,
+            label: 'Needs work: ${bottom.name}',
+            value: '${bottom.passPercent.toStringAsFixed(1)}%',
+            color: AppColors.danger,
+          ),
+        _perfPill(
+          icon: Icons.fact_check_outlined,
+          label: 'Points audited',
+          value: '${a.overall.totalAudited}',
+          color: AppColors.primary,
+        ),
+      ],
+    );
+  }
+
+  Widget _perfPill({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 7),
+          Text(label, style: AppTextStyles.body12),
+          const SizedBox(width: 6),
+          Text(value, style: AppTextStyles.medium13.copyWith(color: color)),
+        ],
+      ),
+    );
+  }
+
+  Color _failColor(double failPct) {
+    if (failPct >= 50) return AppColors.danger;
+    if (failPct >= 25) return AppColors.warning;
+    return AppColors.success;
+  }
+
+  Widget _buildPointAnalysisPanel(AsyncValue<ReportAnalytics> async) {
+    return AppPanel(
+      title: 'Audit point analysis',
+      icon: Icons.analytics_outlined,
+      child: async.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 28),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (e, _) => Row(
+          children: [
+            Icon(Icons.error_outline, color: AppColors.danger, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('Couldn\'t load point analysis.',
+                  style: AppTextStyles.body13),
+            ),
+            TextButton(
+              onPressed: () =>
+                  ref.invalidate(reportAnalyticsProvider(_analyticsQuery())),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+        data: (a) {
+          final scored = a.points.where((p) => p.scored > 0).toList();
+          if (scored.isEmpty) {
+            return const EmptyPanel(
+                message: 'No scored audit points for the current filter.');
+          }
+          final failing = scored.where((p) => p.fail > 0).toList();
+          final clean = scored.length - failing.length;
+          final worst = a.worstPoint;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Which audit points fail most across the selected audits '
+                '(ranked worst first).',
+                style: AppTextStyles.body12,
+              ),
+              const SizedBox(height: 10),
+              if (worst != null && worst.fail > 0) ...[
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: AppColors.danger.withValues(alpha: 0.28)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.priority_high_rounded,
+                          size: 18, color: AppColors.danger),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Biggest gap: ${worst.name} — fails in '
+                          '${worst.failPercent.toStringAsFixed(0)}% of audits '
+                          '(${worst.fail} of ${worst.scored}).',
+                          style: AppTextStyles.medium13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (failing.isEmpty)
+                Text('Every audited point passed. 🎉',
+                    style: AppTextStyles.body13)
+              else
+                ...failing.map(_pointRow),
+              if (clean > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '$clean point${clean == 1 ? '' : 's'} passed at every audit.',
+                  style: AppTextStyles.body12
+                      .copyWith(color: AppColors.textMuted),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _pointRow(PointStat p) {
+    final color = _failColor(p.failPercent);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.surface2,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Text('${p.rank}', style: AppTextStyles.medium12),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(p.name,
+                          style: AppTextStyles.medium13,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('${p.failPercent.toStringAsFixed(0)}% fail',
+                        style: AppTextStyles.medium13.copyWith(color: color)),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: (p.failPercent / 100).clamp(0.0, 1.0),
+                    minHeight: 7,
+                    backgroundColor: AppColors.surface2,
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${p.fail} fail · ${p.pass} pass'
+                  '${p.na > 0 ? ' · ${p.na} N/A' : ''} · '
+                  'cumulative ${p.cumulativePercent.toStringAsFixed(0)}%',
+                  style: AppTextStyles.body12,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _perfRow(int rank, GroupPerformance p) {
+    final pct = p.passPercent;
+    final color = _perfColor(pct);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.surface2,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Text('$rank', style: AppTextStyles.medium12),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(p.name,
+                          style: AppTextStyles.medium13,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('${pct.toStringAsFixed(1)}%',
+                        style: AppTextStyles.medium13.copyWith(color: color)),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: (pct / 100).clamp(0.0, 1.0),
+                    minHeight: 7,
+                    backgroundColor: AppColors.surface2,
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${p.audits} audit${p.audits == 1 ? '' : 's'} · '
+                  '${p.totalFail} fail point${p.totalFail == 1 ? '' : 's'}'
+                  '${p.location.isNotEmpty ? ' · ${p.location}' : ''}',
+                  style: AppTextStyles.body12,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _runExport(_ExportFormat fmt) async {

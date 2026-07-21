@@ -90,6 +90,7 @@ class ApiConstants {
       '/reports/$auditPlanId/pdf';
   static String clusterReport(String clusterManagerId) =>
       '/reports/cluster/$clusterManagerId';
+  static const String reportAnalytics = '/reports/analytics';
   static const String exportReports = '/reports/export';
   static const String exportReportsCsv = '/reports/export.csv';
   static const String exportReportsXlsx = '/reports/export.xlsx';

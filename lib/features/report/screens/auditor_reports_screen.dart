@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/helpers.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_dropdown.dart';
+import '../../admin_reports/services/report_export_client.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 
 class AuditorReportsScreen extends ConsumerStatefulWidget {
@@ -18,6 +20,31 @@ class AuditorReportsScreen extends ConsumerStatefulWidget {
 
 class _AuditorReportsScreenState extends ConsumerState<AuditorReportsScreen> {
   String? _selectedAuditId;
+  bool _downloading = false;
+
+  /// Downloads the auditor's own audits as an Excel workbook. The backend
+  /// scopes `/reports/export.xlsx` to `auditor_id = me`, so no filters are
+  /// needed here — every audit assigned to this auditor is included.
+  Future<void> _downloadExcel() async {
+    setState(() => _downloading = true);
+    AppHelpers.showSuccessSnackbar(context, 'Preparing Excel…');
+    try {
+      final result = await ref
+          .read(reportExportClientProvider)
+          .downloadXlsx(<String, dynamic>{});
+      if (!mounted) return;
+      final saved = result.savedPath;
+      AppHelpers.showSuccessSnackbar(
+        context,
+        saved == null ? 'Excel downloaded.' : 'Excel saved to $saved',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(e));
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,9 +130,18 @@ class _AuditorReportsScreenState extends ConsumerState<AuditorReportsScreen> {
                         onChanged: (val) => setState(() => _selectedAuditId = val),
                       ),
                       const SizedBox(height: 32),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 10,
+                        runSpacing: 10,
                         children: [
+                          AppButton(
+                            label: 'Download Excel',
+                            icon: Icons.table_chart_outlined,
+                            variant: AppButtonVariant.ghost,
+                            isLoading: _downloading,
+                            onPressed: _downloading ? null : _downloadExcel,
+                          ),
                           AppButton(
                             label: 'View Report',
                             icon: Icons.visibility_outlined,
