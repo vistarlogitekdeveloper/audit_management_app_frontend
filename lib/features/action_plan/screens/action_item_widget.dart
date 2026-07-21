@@ -558,6 +558,13 @@ class _PersonAutocompleteState extends State<_PersonAutocomplete> {
     return RawAutocomplete<String>(
       textEditingController: widget.controller,
       focusNode: _focusNode,
+      // RawAutocomplete updates the controller's text programmatically when
+      // an option is picked, and TextEditingController writes do NOT fire
+      // the underlying TextField's onChanged. Without this callback the
+      // parent state never learns the user picked anyone → the PATCH sent
+      // responsible_person: "" and the server (correctly) preserved the
+      // "TBD" auto-seed. Wiring onSelected → widget.onChanged fixes it.
+      onSelected: widget.onChanged,
       optionsBuilder: (value) {
         final query = value.text.trim().toLowerCase();
         if (query.isEmpty) return widget.suggestions.take(8);
