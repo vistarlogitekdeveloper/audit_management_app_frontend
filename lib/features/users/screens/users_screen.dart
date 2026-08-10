@@ -216,6 +216,8 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
       onSelected: (value) => _onAction(value, user),
       itemBuilder: (_) => [
         const PopupMenuItem(value: 'edit', child: Text('Edit')),
+        const PopupMenuItem(
+            value: 'password', child: Text('Change password')),
         if (user.isActive)
           const PopupMenuItem(value: 'deactivate', child: Text('Deactivate')),
       ],
@@ -225,6 +227,8 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
   Future<void> _onAction(String action, UserModel user) async {
     if (action == 'edit') {
       _showUserSheet(context, user: user);
+    } else if (action == 'password') {
+      _showChangePasswordDialog(user);
     } else if (action == 'deactivate') {
       final confirm = await AppHelpers.showConfirmationDialog(
         context: context,
@@ -314,6 +318,58 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
       },
     );
   }
+
+  Future<void> _showChangePasswordDialog(UserModel user) async {
+    Future<void> handleSubmit(
+        BuildContext popupContext, String password) async {
+      try {
+        await ref.read(userProvider).changePassword(user.id, password);
+        if (!popupContext.mounted) return;
+        AppHelpers.showSuccessSnackbar(
+            popupContext, 'Password updated for ${user.name}.');
+        Navigator.of(popupContext).pop();
+      } catch (e) {
+        if (!popupContext.mounted) return;
+        AppHelpers.showErrorSnackbar(
+            popupContext, AppHelpers.readableError(e));
+      }
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final media = MediaQuery.sizeOf(dialogContext);
+        final isNarrow = media.width < 480;
+        final horizontalInset = isNarrow ? 16.0 : 40.0;
+        final verticalInset = isNarrow ? 24.0 : 32.0;
+        return Dialog(
+          backgroundColor: AppColors.background,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppColors.line),
+          ),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: horizontalInset,
+            vertical: verticalInset,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 460,
+              maxHeight: media.height - (verticalInset * 2),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+              child: _ChangePasswordForm(
+                user: user,
+                onSubmit: (password) => handleSubmit(dialogContext, password),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _RoleTab {
@@ -372,8 +428,10 @@ class _UserCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               AppButton(
                 label: 'Edit',
@@ -381,15 +439,19 @@ class _UserCard extends StatelessWidget {
                 variant: AppButtonVariant.ghost,
                 onPressed: () => onAction('edit', user),
               ),
-              if (user.isActive) ...[
-                const SizedBox(width: 8),
+              AppButton(
+                label: 'Password',
+                icon: Icons.lock_reset_rounded,
+                variant: AppButtonVariant.ghost,
+                onPressed: () => onAction('password', user),
+              ),
+              if (user.isActive)
                 AppButton(
                   label: 'Deactivate',
                   icon: Icons.block_rounded,
                   variant: AppButtonVariant.danger,
                   onPressed: () => onAction('deactivate', user),
                 ),
-              ],
             ],
           ),
         ],
@@ -538,6 +600,110 @@ class _UserFormState extends State<_UserForm> {
     }
     try {
       await widget.onSubmit(payload);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+}
+
+/// Admin-only dialog to set a new password for a user. The account keeps its
+/// email/role; only the password changes and takes effect immediately.
+class _ChangePasswordForm extends StatefulWidget {
+  const _ChangePasswordForm({required this.user, required this.onSubmit});
+
+  final UserModel user;
+  final Future<void> Function(String password) onSubmit;
+
+  @override
+  State<_ChangePasswordForm> createState() => _ChangePasswordFormState();
+}
+
+class _ChangePasswordFormState extends State<_ChangePasswordForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _obscure = true;
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppSheetHeader(title: 'Change password'),
+            const SizedBox(height: 6),
+            Text(
+              'Set a new password for ${widget.user.name}'
+              '${widget.user.email.isEmpty ? '' : ' (${widget.user.email})'}. '
+              'They can sign in with it immediately.',
+              style: AppTextStyles.body13
+                  .copyWith(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 14),
+            AppInput(
+              label: 'New password',
+              controller: _password,
+              obscureText: _obscure,
+              validator: Validators.validatePassword,
+              suffixIcon: IconButton(
+                tooltip: _obscure ? 'Show password' : 'Hide password',
+                icon: Icon(
+                    _obscure ? Icons.visibility_off : Icons.visibility,
+                    size: 20),
+                onPressed: () => setState(() => _obscure = !_obscure),
+              ),
+            ),
+            const SizedBox(height: 12),
+            AppInput(
+              label: 'Confirm new password',
+              controller: _confirm,
+              obscureText: _obscure,
+              validator: (v) =>
+                  (v ?? '') != _password.text ? 'Passwords do not match' : null,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Cancel',
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: AppButton(
+                    label: 'Update password',
+                    isLoading: _submitting,
+                    onPressed: _submit,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _submitting = true);
+    try {
+      await widget.onSubmit(_password.text);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

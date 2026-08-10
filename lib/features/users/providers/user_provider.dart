@@ -90,4 +90,11 @@ class UserProvider extends ChangeNotifier {
         .toList();
     notifyListeners();
   }
+
+  /// Admin sets a new password for a user. Nothing user-visible changes in the
+  /// directory, so we deliberately don't swap the (partial) response into the
+  /// list — that would drop email/role/status the update endpoint omits.
+  Future<void> changePassword(String id, String password) async {
+    await _service.updateUser(id, {'password': password});
+  }
 }
