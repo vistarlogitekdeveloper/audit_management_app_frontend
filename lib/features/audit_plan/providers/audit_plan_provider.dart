@@ -145,6 +145,50 @@ class AuditPlanProvider extends ChangeNotifier {
     }
   }
 
+  /// Updates a draft plan's editable fields in place. Refreshes the cached
+  /// `plans` list so the calendar / reports UI reflects the change without
+  /// another round trip.
+  Future<AuditPlanModel> updatePlan(
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    isLoading = true;
+    notifyListeners();
+    try {
+      final updated = await _service.updatePlan(id, data);
+      plans = [
+        for (final p in plans)
+          if (p.id == updated.id) updated else p,
+      ];
+      _invalidateDashboards();
+      return updated;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Releases a saved draft (no field changes). Moves the plan from `draft`
+  /// to `released` and re-fetches the released list so downstream screens
+  /// see it appear.
+  Future<AuditPlanModel> releaseDraftPlan(String id) async {
+    isLoading = true;
+    notifyListeners();
+    try {
+      final released = await _service.releaseExistingPlan(id);
+      plans = [
+        for (final p in plans)
+          if (p.id == released.id) released else p,
+      ];
+      await fetchReleasedAudits();
+      _invalidateDashboards();
+      return released;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> reschedulePlan({
     required String id,
     required DateTime newDate,

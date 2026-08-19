@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -7,6 +8,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/helpers.dart';
 import '../../dashboard/models/dashboard_model.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
+import '../../audit_plan/models/audit_plan_model.dart';
 import '../../audit_plan/providers/audit_plan_provider.dart';
 
 class AuditCalendarScreen extends ConsumerStatefulWidget {
@@ -188,6 +190,7 @@ class _AuditCalendarContentState extends ConsumerState<_AuditCalendarContent> {
     for (final plan in widget.auditPlanState.plans) {
       rows.add({
         'auditId': plan.id,
+        'plan': plan,
         'projectName': plan.projectName.isNotEmpty ? plan.projectName : '—',
         'incharge': plan.projectIncharge.isNotEmpty
             ? plan.projectIncharge
@@ -369,27 +372,78 @@ class _AuditCalendarContentState extends ConsumerState<_AuditCalendarContent> {
   }
 
   Widget _buildActionCell(Map<String, dynamic> row) {
+    final status = (row['status'] as String).trim().toLowerCase();
     final deletable = isAuditPlanDeletable(row['status'] as String);
-    return IconButton(
-      icon: Icon(
-        Icons.delete_outline_rounded,
-        size: 20,
-        color: deletable
-            ? AppColors.danger
-            : AppColors.textSecondary.withValues(alpha: 0.4),
-      ),
-      tooltip: deletable
-          ? 'Delete scheduled audit'
-          : 'Only draft or released audits can be deleted',
-      splashRadius: 20,
-      onPressed: deletable
-          ? () => _confirmDelete(
-                id: row['auditId'] as String,
-                projectName: row['projectName'] as String,
-                date: row['planDate'] as DateTime,
-              )
-          : null,
+    final isDraft = status == 'draft';
+    final plan = row['plan'] as AuditPlanModel?;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isDraft && plan != null) ...[
+          IconButton(
+            icon: const Icon(Icons.edit_outlined,
+                size: 20, color: AppColors.primary),
+            tooltip: 'Edit draft',
+            splashRadius: 20,
+            onPressed: () =>
+                context.push('/admin/create-plan', extra: plan),
+          ),
+          IconButton(
+            icon: Icon(Icons.send_rounded,
+                size: 20, color: AppColors.success),
+            tooltip: 'Release draft',
+            splashRadius: 20,
+            onPressed: () => _confirmRelease(plan),
+          ),
+        ],
+        IconButton(
+          icon: Icon(
+            Icons.delete_outline_rounded,
+            size: 20,
+            color: deletable
+                ? AppColors.danger
+                : AppColors.textSecondary.withValues(alpha: 0.4),
+          ),
+          tooltip: deletable
+              ? 'Delete scheduled audit'
+              : 'Only draft or released audits can be deleted',
+          splashRadius: 20,
+          onPressed: deletable
+              ? () => _confirmDelete(
+                    id: row['auditId'] as String,
+                    projectName: row['projectName'] as String,
+                    date: row['planDate'] as DateTime,
+                  )
+              : null,
+        ),
+      ],
     );
+  }
+
+  Future<void> _confirmRelease(AuditPlanModel plan) async {
+    final confirmed = await AppHelpers.showConfirmationDialog(
+      context: context,
+      title: 'Release this draft?',
+      message:
+          'Releases the draft for "${plan.projectName}" scheduled on '
+          '${AppHelpers.formatDate(plan.auditDate)}. Notifications go out to '
+          'the auditor, project incharge, and cluster manager.',
+      confirmLabel: 'Release',
+      confirmColor: AppColors.primary,
+    );
+    if (!confirmed || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(auditPlanProvider).releaseDraftPlan(plan.id);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Audit released.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(error));
+    }
   }
 
   Future<void> _confirmDelete({

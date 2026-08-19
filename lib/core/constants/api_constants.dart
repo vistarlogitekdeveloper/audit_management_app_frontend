@@ -1,5 +1,6 @@
 class ApiConstants {
-  static const String baseUrl = 'https://vistar-crm.onrender.com/api/v1/audit';
+  //static const String baseUrl = 'https://vistar-crm.onrender.com/api/v1/audit';
+  static const String baseUrl = 'https://api.vistarlogitek.com/api/v1/audit';
 
   // Auth
   static const String login = '/auth/login';

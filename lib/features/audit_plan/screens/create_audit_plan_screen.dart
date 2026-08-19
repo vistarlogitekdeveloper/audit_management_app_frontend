@@ -17,7 +17,14 @@ import '../models/audit_plan_model.dart';
 import '../providers/audit_plan_provider.dart';
 
 class CreateAuditPlanScreen extends ConsumerStatefulWidget {
-  const CreateAuditPlanScreen({super.key});
+  const CreateAuditPlanScreen({super.key, this.initialPlan});
+
+  /// When non-null the form opens in edit mode, pre-filled from this draft.
+  /// Editing is only meaningful for drafts — release/cancel flows have to
+  /// go through their dedicated actions instead.
+  final AuditPlanModel? initialPlan;
+
+  bool get _isEditing => initialPlan != null;
 
   @override
   ConsumerState<CreateAuditPlanScreen> createState() =>
@@ -35,12 +42,10 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
   final _remarksController = TextEditingController();
   final _auditDateController = TextEditingController();
   String? _lastReportedLookupError;
-
-  @override
-  void initState() {
-    super.initState();
-    Future.microtask(() => ref.read(auditPlanProvider).bootstrap());
-  }
+  // Set once the form has been seeded from `widget.initialPlan`, so a rebuild
+  // triggered by the user changing a field doesn't clobber their edits with
+  // the original draft values.
+  bool _prefilledFromInitial = false;
 
   @override
   void dispose() {
@@ -54,6 +59,8 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
   Widget build(BuildContext context) {
     final provider = ref.watch(auditPlanProvider);
     final wide = MediaQuery.of(context).size.width > 950;
+
+    _maybePrefillFromInitial(provider);
 
     final lookupError = provider.lookupsError;
     if (lookupError != null && lookupError != _lastReportedLookupError) {
@@ -69,16 +76,19 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
       _lastReportedLookupError = null;
     }
 
+    final isEditing = widget._isEditing;
+
     return LoadingOverlay(
       isLoading: provider.isLoading || provider.lookupsLoading,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageHero(
-            title: 'Create audit plan',
-            subtitle:
-                'Schedule audits, assign ownership, and notify the right stakeholders from one focused workflow.',
-            icon: Icons.add_task_rounded,
+            title: isEditing ? 'Edit audit plan' : 'Create audit plan',
+            subtitle: isEditing
+                ? 'Update the draft, then release it to notify the auditor, project incharge, and cluster manager.'
+                : 'Schedule audits, assign ownership, and notify the right stakeholders from one focused workflow.',
+            icon: isEditing ? Icons.edit_note_rounded : Icons.add_task_rounded,
             action: FilledButton.icon(
               onPressed: () => _submit(context, provider, 'released'),
               icon: const Icon(Icons.send_rounded, size: 18),
@@ -215,7 +225,7 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
               children: [
                 Expanded(
                   child: AppButton(
-                    label: 'Save as Draft',
+                    label: widget._isEditing ? 'Save changes' : 'Save as Draft',
                     variant: AppButtonVariant.ghost,
                     onPressed: () => _submit(context, provider, 'draft'),
                   ),
@@ -281,7 +291,50 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
     String status,
   ) async {
     if (!_formKey.currentState!.validate()) return;
-    await provider.createPlan({
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final planId = widget.initialPlan?.id;
+      if (planId != null && planId.isNotEmpty) {
+        // Edit an existing draft: PATCH the fields, then release if the
+        // admin picked "Release Audit Plan" instead of "Save changes".
+        await provider.updatePlan(planId, _formPayload(provider));
+        if (status == 'released') {
+          await provider.releaseDraftPlan(planId);
+        }
+      } else {
+        await provider.createPlan({
+          ..._formPayload(provider),
+          'status': status,
+        });
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(e));
+      return;
+    }
+    if (!context.mounted) return;
+
+    if (status == 'released') {
+      await _showReleasedSuccessDialog(context);
+      if (!context.mounted) return;
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            widget._isEditing
+                ? 'Draft updated.'
+                : 'Audit plan saved as draft.',
+          ),
+        ),
+      );
+      if (widget._isEditing && context.mounted) {
+        context.go('/admin/calendar');
+      }
+    }
+  }
+
+  Map<String, dynamic> _formPayload(AuditPlanProvider provider) {
+    return {
       'projectId': _selectedProject!.id,
       'projectName': _selectedProject!.name,
       'projectInchargeId': _selectedProjectInchargeId,
@@ -302,21 +355,7 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
       'auditDate': _dateForApi(_auditDate!),
       'location': _locationController.text.trim(),
       'remarks': _remarksController.text.trim(),
-      'status': status,
-    });
-    if (!context.mounted) return;
-
-    if (status == 'released') {
-      await _showReleasedSuccessDialog(context);
-      if (!context.mounted) return;
-      // ignore: use_build_context_synchronously
-      // ignore: dead_code
-    } else {
-      AppHelpers.showSuccessSnackbar(
-        context,
-        'Audit plan saved as draft.',
-      );
-    }
+    };
   }
 
   Future<void> _showReleasedSuccessDialog(BuildContext context) async {
@@ -396,6 +435,47 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
   String? _matchUserId(List<UserLookupModel> users, String? id) {
     if (id == null || id.isEmpty) return null;
     return users.any((u) => u.id == id) ? id : null;
+  }
+
+  /// Seeds the form from `widget.initialPlan` the first time the provider
+  /// has loaded the projects and user-role lookups. Called from `build`
+  /// (rather than initState) so we can wait for the async bootstrap before
+  /// picking dropdown values that only exist once those lists are populated.
+  void _maybePrefillFromInitial(AuditPlanProvider provider) {
+    if (_prefilledFromInitial) return;
+    final plan = widget.initialPlan;
+    if (plan == null) return;
+    // Wait until at least the projects list is available; without it we
+    // can't resolve _selectedProject and the dropdown would render empty.
+    if (provider.projects.isEmpty) return;
+
+    ProjectLookupModel? project;
+    for (final p in provider.projects) {
+      if (p.id == plan.projectId) {
+        project = p;
+        break;
+      }
+    }
+
+    // Schedule the state update for after the current build so we don't
+    // call setState during a widget build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _prefilledFromInitial = true;
+        _selectedProject = project;
+        _selectedProjectInchargeId =
+            _matchUserId(provider.projectIncharges, plan.projectInchargeId);
+        _selectedClusterManagerId =
+            _matchUserId(provider.clusterManagers, plan.clusterManagerId);
+        _selectedAuditorId =
+            _matchUserId(provider.auditors, plan.auditorId);
+        _auditDate = plan.auditDate;
+        _auditDateController.text = AppDateUtils.formatDisplay(plan.auditDate);
+        _locationController.text = plan.location;
+        _remarksController.text = plan.remarks;
+      });
+    });
   }
 
   String _selectedUserLabel(

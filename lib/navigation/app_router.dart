@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../app_state/app_providers.dart';
 import '../core/constants/app_constants.dart';
 import '../features/action_plan/screens/action_plan_screen.dart';
+import '../features/audit_plan/models/audit_plan_model.dart';
 import '../features/audit_plan/screens/create_audit_plan_screen.dart';
 import '../features/audit_sheet/screens/audit_sheet_screen.dart';
 import '../features/audit_sheet/screens/perform_audit_screen.dart';
@@ -93,7 +94,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/admin/create-plan',
-            builder: (_, __) => const CreateAuditPlanScreen(),
+            builder: (_, state) {
+              // `extra` carries an AuditPlanModel when opening this screen
+              // in edit-a-draft mode; null (or any other value) keeps the
+              // original create-new-plan flow.
+              final extra = state.extra;
+              return CreateAuditPlanScreen(
+                initialPlan: extra is AuditPlanModel ? extra : null,
+              );
+            },
           ),
           GoRoute(
             path: '/admin/calendar',

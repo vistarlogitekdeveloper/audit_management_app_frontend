@@ -1,9 +1,13 @@
 class AuditPlanModel {
   const AuditPlanModel({
     required this.id,
+    required this.projectId,
     required this.projectName,
+    required this.projectInchargeId,
     required this.projectIncharge,
+    required this.clusterManagerId,
     required this.clusterManager,
+    required this.auditorId,
     required this.auditorName,
     required this.auditDate,
     required this.location,
@@ -12,9 +16,13 @@ class AuditPlanModel {
   });
 
   final String id;
+  final String projectId;
   final String projectName;
+  final String projectInchargeId;
   final String projectIncharge;
+  final String clusterManagerId;
   final String clusterManager;
+  final String auditorId;
   final String auditorName;
   final DateTime auditDate;
   final String location;
@@ -26,6 +34,11 @@ class AuditPlanModel {
   static String _nameFromNested(dynamic value) {
     if (value is Map) return value['name']?.toString() ?? '';
     return value?.toString() ?? '';
+  }
+
+  static String _idFromNested(dynamic value) {
+    if (value is Map) return value['id']?.toString() ?? '';
+    return '';
   }
 
   factory AuditPlanModel.fromJson(Map<String, dynamic> json) {
@@ -40,25 +53,36 @@ class AuditPlanModel {
         data['auditPlanId']?.toString() ??
         '';
 
+    final project = data['project'];
+    final incharge =
+        data['incharge'] ?? data['projectIncharge'] ?? data['project_incharge'];
+    final cluster = data['clusterManager'] ?? data['cluster_manager'];
+    final auditor = data['auditor'];
+
+    // FK ids may arrive on the row itself (snake or camel) OR inside the
+    // included association object — read both so the edit-a-draft flow can
+    // always pre-select the right dropdown option.
     return AuditPlanModel(
       id: id,
+      projectId: data['project_id']?.toString() ??
+          data['projectId']?.toString() ??
+          _idFromNested(project),
       projectName: _nameFromNested(
-          data['project'] ??
-          data['projectName'] ??
-          data['project_name']),
-      projectIncharge: _nameFromNested(
-          data['incharge'] ??
-          data['projectIncharge'] ??
-          data['project_incharge']),
+          project ?? data['projectName'] ?? data['project_name']),
+      projectInchargeId: data['project_incharge_id']?.toString() ??
+          data['projectInchargeId']?.toString() ??
+          _idFromNested(incharge),
+      projectIncharge: _nameFromNested(incharge),
+      clusterManagerId: data['cluster_manager_id']?.toString() ??
+          data['clusterManagerId']?.toString() ??
+          _idFromNested(cluster),
       clusterManager: _nameFromNested(
-          data['clusterManager'] ??
-          data['cluster_manager'] ??
-          data['clusterManagerName'] ??
-          data['cluster_manager_name']),
+          cluster ?? data['clusterManagerName'] ?? data['cluster_manager_name']),
+      auditorId: data['auditor_id']?.toString() ??
+          data['auditorId']?.toString() ??
+          _idFromNested(auditor),
       auditorName: _nameFromNested(
-          data['auditor'] ??
-          data['auditorName'] ??
-          data['auditor_name']),
+          auditor ?? data['auditorName'] ?? data['auditor_name']),
       auditDate:
           DateTime.tryParse(
             data['auditDate']?.toString() ??
@@ -74,9 +98,13 @@ class AuditPlanModel {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'projectId': projectId,
     'projectName': projectName,
+    'projectInchargeId': projectInchargeId,
     'projectIncharge': projectIncharge,
+    'clusterManagerId': clusterManagerId,
     'clusterManager': clusterManager,
+    'auditorId': auditorId,
     'auditorName': auditorName,
     'auditDate': auditDate.toIso8601String(),
     'location': location,

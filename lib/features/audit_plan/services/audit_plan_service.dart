@@ -110,16 +110,42 @@ class AuditPlanService {
     if (planId.isEmpty) {
       // Create draft first, then release it using the ID in the body
       final draft = await createPlan({...data, 'status': 'draft'});
-      final response = await _apiService.patch(
-        ApiConstants.releaseAuditPlans,
-        data: {'id': draft.id, 'audit_plan_id': draft.id},
-      );
-      return AuditPlanModel.fromJson(_apiService.extractObject(response));
+      return releaseExistingPlan(draft.id);
     }
-    // Release existing plan using the ID in the body
+    return releaseExistingPlan(planId);
+  }
+
+  /// Flips an existing draft to `released`. Backend refuses with 400 if the
+  /// plan is already released/cancelled.
+  Future<AuditPlanModel> releaseExistingPlan(String id) async {
     final response = await _apiService.patch(
       ApiConstants.releaseAuditPlans,
-      data: {'id': planId, 'audit_plan_id': planId},
+      data: {'id': id, 'audit_plan_id': id},
+    );
+    return AuditPlanModel.fromJson(_apiService.extractObject(response));
+  }
+
+  /// Edits a draft audit plan. Only the fields present in [data] are
+  /// forwarded; the backend rejects the request once the plan is no longer
+  /// in `draft` state.
+  Future<AuditPlanModel> updatePlan(String id, Map<String, dynamic> data) async {
+    final payload = <String, dynamic>{};
+    void copy(String key, dynamic value) {
+      if (value != null && value.toString().isNotEmpty) payload[key] = value;
+    }
+    copy('project_id', data['project_id'] ?? data['projectId']);
+    copy('auditor_id', data['auditor_id'] ?? data['auditorId']);
+    copy('project_incharge_id',
+        data['project_incharge_id'] ?? data['projectInchargeId']);
+    copy('cluster_manager_id',
+        data['cluster_manager_id'] ?? data['clusterManagerId']);
+    copy('audit_date', data['audit_date'] ?? data['auditDate']);
+    if (data.containsKey('location')) payload['location'] = data['location'];
+    if (data.containsKey('remarks')) payload['remarks'] = data['remarks'];
+
+    final response = await _apiService.patch(
+      ApiConstants.auditPlanById(id),
+      data: payload,
     );
     return AuditPlanModel.fromJson(_apiService.extractObject(response));
   }
