@@ -46,6 +46,10 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
   // triggered by the user changing a field doesn't clobber their edits with
   // the original draft values.
   bool _prefilledFromInitial = false;
+  // Tracks the mode of the in-flight submit. Field validators check this so
+  // "Save as Draft" only enforces the project (the DB minimum) while
+  // "Release Audit Plan" still requires auditor, date, and location.
+  String _submitMode = 'released';
 
   @override
   void dispose() {
@@ -188,7 +192,9 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
               label: 'Audit Date',
               controller: _auditDateController,
               isReadOnly: true,
-              validator: (_) => Validators.validateFutureDate(_auditDate),
+              validator: (_) => _submitMode == 'draft'
+                  ? null
+                  : Validators.validateFutureDate(_auditDate),
               suffixIcon: const Icon(Icons.calendar_today_outlined),
               onTap: () async {
                 final selected = await showDatePicker(
@@ -210,9 +216,9 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
             AppInput(
               label: 'Location',
               controller: _locationController,
-              validator:
-                  (value) =>
-                      Validators.validateRequired(value, fieldName: 'Location'),
+              validator: (value) => _submitMode == 'draft'
+                  ? null
+                  : Validators.validateRequired(value, fieldName: 'Location'),
             ),
             const SizedBox(height: 14),
             AppInput(
@@ -290,6 +296,9 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
     AuditPlanProvider provider,
     String status,
   ) async {
+    // Set BEFORE validating so the field validators see the right mode —
+    // a draft only demands `Project`, a release still demands the full form.
+    setState(() => _submitMode = status);
     if (!_formKey.currentState!.validate()) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -352,7 +361,9 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
       'auditorId': _selectedAuditorId,
       'auditorName':
           _findUser(provider.auditors, _selectedAuditorId)?.name ?? '',
-      'auditDate': _dateForApi(_auditDate!),
+      // Null when saving a draft without a picked date — backend now accepts
+      // this and the payload copier drops the key before the PATCH/POST.
+      'auditDate': _auditDate == null ? null : _dateForApi(_auditDate!),
       'location': _locationController.text.trim(),
       'remarks': _remarksController.text.trim(),
     };
@@ -427,7 +438,10 @@ class _CreateAuditPlanScreenState extends ConsumerState<CreateAuditPlanScreen> {
           : 'Select $label',
       value: hasMatch ? value : null,
       items: items,
-      validator: (v) => v == null ? '$label is required' : null,
+      validator: (v) {
+        if (_submitMode == 'draft') return null;
+        return v == null ? '$label is required' : null;
+      },
       onChanged: items.isEmpty ? null : onChanged,
     );
   }

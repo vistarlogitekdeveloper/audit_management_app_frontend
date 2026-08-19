@@ -129,19 +129,36 @@ class AuditPlanService {
   /// forwarded; the backend rejects the request once the plan is no longer
   /// in `draft` state.
   Future<AuditPlanModel> updatePlan(String id, Map<String, dynamic> data) async {
-    final payload = <String, dynamic>{};
-    void copy(String key, dynamic value) {
-      if (value != null && value.toString().isNotEmpty) payload[key] = value;
+    // Keys pulled from either the snake_case or camelCase variant the FE
+    // form may hand us. Values are sent as-is (including nulls) so that
+    // clearing a field on the edit form actually nulls the DB column — an
+    // empty-string cleanup step at the end drops accidental blanks.
+    dynamic pick(String snake, String camel) {
+      if (data.containsKey(snake)) return data[snake];
+      if (data.containsKey(camel)) return data[camel];
+      return _absent;
     }
-    copy('project_id', data['project_id'] ?? data['projectId']);
-    copy('auditor_id', data['auditor_id'] ?? data['auditorId']);
-    copy('project_incharge_id',
-        data['project_incharge_id'] ?? data['projectInchargeId']);
-    copy('cluster_manager_id',
-        data['cluster_manager_id'] ?? data['clusterManagerId']);
-    copy('audit_date', data['audit_date'] ?? data['auditDate']);
-    if (data.containsKey('location')) payload['location'] = data['location'];
-    if (data.containsKey('remarks')) payload['remarks'] = data['remarks'];
+    final raw = <String, dynamic>{
+      'project_id': pick('project_id', 'projectId'),
+      'auditor_id': pick('auditor_id', 'auditorId'),
+      'project_incharge_id': pick('project_incharge_id', 'projectInchargeId'),
+      'cluster_manager_id': pick('cluster_manager_id', 'clusterManagerId'),
+      'audit_date': pick('audit_date', 'auditDate'),
+      'location': data.containsKey('location') ? data['location'] : _absent,
+      'remarks': data.containsKey('remarks') ? data['remarks'] : _absent,
+    };
+    final payload = <String, dynamic>{};
+    raw.forEach((key, value) {
+      if (identical(value, _absent)) return;
+      // The empty-string variants come from cleared dropdowns/inputs; the
+      // backend prefers explicit nulls (its Joi .empty('') maps '' → null
+      // anyway, but sending null is unambiguous).
+      if (value is String && value.isEmpty) {
+        payload[key] = null;
+      } else {
+        payload[key] = value;
+      }
+    });
 
     final response = await _apiService.patch(
       ApiConstants.auditPlanById(id),
@@ -149,6 +166,8 @@ class AuditPlanService {
     );
     return AuditPlanModel.fromJson(_apiService.extractObject(response));
   }
+
+  static const Object _absent = Object();
 
   Future<void> reschedulePlan({
     required String id,
