@@ -1,5 +1,4 @@
 class ApiConstants {
-  //static const String baseUrl = 'https://vistar-crm.onrender.com/api/v1/audit';
   static const String baseUrl = 'https://api.vistarlogitek.com/api/v1/audit';
 
   // Auth
@@ -27,10 +26,8 @@ class ApiConstants {
   static const String auditPlans = '/audit-plans';
   static const String releaseAuditPlans = '/audit-plans/release';
   static String auditPlanById(String id) => '/audit-plans/$id';
-  static String releaseAuditPlanById(String id) =>
-      '/audit-plans/$id/release';
-  static String rescheduleAuditPlan(String id) =>
-      '/audit-plans/$id/reschedule';
+  static String releaseAuditPlanById(String id) => '/audit-plans/$id/release';
+  static String rescheduleAuditPlan(String id) => '/audit-plans/$id/reschedule';
   static String cancelAuditPlan(String id) => '/audit-plans/$id';
   // Cascade hard-delete: removes the plan plus its sheet, parameters, photos,
   // action plan / items and associated S3 objects in a single transaction.
@@ -48,9 +45,9 @@ class ApiConstants {
   static const String reorderAuditQuestions = '/audit-questions/reorder';
 
   // Audit Sheets
-  static String auditSheet(String auditPlanId) =>
-      '/audit-sheets/$auditPlanId';
+  static String auditSheet(String auditPlanId) => '/audit-sheets/$auditPlanId';
   static String submitAuditSheet(String id) => '/audit-sheets/$id/submit';
+
   /// Multipart POST that attaches a single photo to a parameter on the
   /// auditor's sheet. Returns a presigned HTTPS URL in `image_url` (and
   /// duplicated on `presigned_url` / `url` for backward compat).
@@ -68,27 +65,30 @@ class ApiConstants {
   static String actionPlanById(String id) => '/action-plans/$id';
   static String actionPlanItem(String id, String itemId) =>
       '/action-plans/$id/items/$itemId';
+
   /// Owner evidence files for one action-plan point. Multipart POST with the
   /// file under field name `file`; DELETE by attachment id.
   static String actionPlanItemAttachments(String planId, String itemId) =>
       '/action-plans/$planId/items/$itemId/attachments';
   static String actionPlanItemAttachment(
-          String planId, String itemId, String attachmentId) =>
-      '/action-plans/$planId/items/$itemId/attachments/$attachmentId';
+    String planId,
+    String itemId,
+    String attachmentId,
+  ) => '/action-plans/$planId/items/$itemId/attachments/$attachmentId';
+
   /// Auditor approves / rejects a single item with a remark.
   static String actionPlanItemReview(String planId, String itemId) =>
       '/action-plans/$planId/items/$itemId/review';
+
   /// Auditor closes the plan once every item is approved.
-  static String actionPlanClose(String planId) =>
-      '/action-plans/$planId/close';
+  static String actionPlanClose(String planId) => '/action-plans/$planId/close';
 
   // Cluster
   static const String clusterDashboard = '/cluster/dashboard';
 
   // Reports
   static String report(String auditPlanId) => '/reports/$auditPlanId';
-  static String reportPdf(String auditPlanId) =>
-      '/reports/$auditPlanId/pdf';
+  static String reportPdf(String auditPlanId) => '/reports/$auditPlanId/pdf';
   static String clusterReport(String clusterManagerId) =>
       '/reports/cluster/$clusterManagerId';
   static const String reportAnalytics = '/reports/analytics';
@@ -106,8 +106,7 @@ class ApiConstants {
 
   // Notifications
   static const String notifications = '/notifications';
-  static String markNotificationRead(String id) =>
-      '/notifications/$id/read';
+  static String markNotificationRead(String id) => '/notifications/$id/read';
   static const String markAllNotificationsRead = '/notifications/read-all';
   static String deleteNotification(String id) => '/notifications/$id';
 }
