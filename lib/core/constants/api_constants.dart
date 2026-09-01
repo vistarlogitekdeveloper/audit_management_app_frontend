@@ -83,6 +83,11 @@ class ApiConstants {
   /// Auditor closes the plan once every item is approved.
   static String actionPlanClose(String planId) => '/action-plans/$planId/close';
 
+  /// Renders a downloadable PDF of the action plan (project header, item
+  /// table, close banner). Accepts action_plan.id, its audit_sheet_id, or
+  /// the parent audit_plan_id — same lookup order as the read endpoint.
+  static String actionPlanPdf(String planId) => '/action-plans/$planId/pdf';
+
   // Cluster
   static const String clusterDashboard = '/cluster/dashboard';
 

@@ -154,6 +154,8 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
             plan: plan,
             failCount: failCount,
             deadline: deadline,
+            downloading: provider.isDownloadingPdf,
+            onDownload: plan == null ? null : _downloadPdf,
             approvedCount: provider.items
                 .where((i) => i.reviewStatus == 'approved')
                 .length,
@@ -315,6 +317,27 @@ class _ActionPlanScreenState extends ConsumerState<ActionPlanScreen> {
     }
   }
 
+  Future<void> _downloadPdf() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await ref.read(actionPlanProvider).downloadPdf();
+      if (!mounted) return;
+      final saved = result.savedPath;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            saved == null
+                ? 'Action plan PDF downloaded.'
+                : 'Action plan PDF saved to $saved',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppHelpers.showErrorSnackbar(context, AppHelpers.readableError(e));
+    }
+  }
+
   Future<void> _closePlan() async {
     final plan = ref.read(actionPlanProvider).currentPlan;
     if (plan == null) return;
@@ -388,6 +411,8 @@ class _HeaderBar extends StatelessWidget {
     required this.pendingCount,
     required this.approvedCount,
     required this.rejectedCount,
+    this.downloading = false,
+    this.onDownload,
   });
 
   final ActionItemMode mode;
@@ -398,6 +423,8 @@ class _HeaderBar extends StatelessWidget {
   final int pendingCount;
   final int approvedCount;
   final int rejectedCount;
+  final bool downloading;
+  final VoidCallback? onDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -451,6 +478,21 @@ class _HeaderBar extends StatelessWidget {
               if (deadline != null) ...[
                 const SizedBox(width: 10),
                 _DeadlineChip(remaining: AppDateUtils.daysRemaining(deadline)),
+              ],
+              if (onDownload != null) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: downloading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_rounded, size: 20),
+                  tooltip: 'Download action plan (PDF)',
+                  splashRadius: 20,
+                  onPressed: downloading ? null : onDownload,
+                ),
               ],
             ],
           ),

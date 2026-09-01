@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/api_service.dart';
+import '../../../core/services/download_helper.dart';
 import '../../action_plan_tracker/providers/action_plan_tracker_provider.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../models/action_plan_model.dart';
@@ -30,6 +31,10 @@ class ActionPlanProvider extends ChangeNotifier {
   /// Distinct from [isLoading] so the page-level overlay doesn't fire on
   /// every Approve/Reject tap.
   bool isReviewing = false;
+
+  /// True while a PDF export is being generated. Drives the header's
+  /// Download button spinner without invoking the full-page loading overlay.
+  bool isDownloadingPdf = false;
 
   /// Ids of action items with an attachment upload in flight, so each point's
   /// "Add" control can show a spinner without blocking the rest of the form.
@@ -204,6 +209,24 @@ class ActionPlanProvider extends ChangeNotifier {
       rethrow;
     } finally {
       isReviewing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Requests a PDF render of the currently loaded plan. Returns a
+  /// [DownloadResult] whose `savedPath` is populated on native and null on
+  /// web (the browser handles the download directly).
+  Future<DownloadResult> downloadPdf() async {
+    final plan = currentPlan;
+    if (plan == null || plan.id.isEmpty) {
+      throw StateError('No action plan loaded.');
+    }
+    isDownloadingPdf = true;
+    notifyListeners();
+    try {
+      return await _service.downloadActionPlanPdf(plan.id);
+    } finally {
+      isDownloadingPdf = false;
       notifyListeners();
     }
   }

@@ -1,5 +1,10 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+
 import '../../../core/constants/api_constants.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/download_helper.dart';
 import '../models/action_plan_model.dart';
 
 class ActionPlanService {
@@ -115,5 +120,37 @@ class ActionPlanService {
       },
     );
     return ActionPlanModel.fromJson(_apiService.extractObject(response));
+  }
+
+  /// Requests a PDF render of the plan from the backend and hands off to
+  /// the shared cross-platform DownloadHelper: on web the file streams
+  /// straight into the browser's downloads folder; on native it's written
+  /// to a temp path exposed via [DownloadResult.savedPath].
+  Future<DownloadResult> downloadActionPlanPdf(String planId) async {
+    final response = await _apiService.get(ApiConstants.actionPlanPdf(planId));
+    final data = _apiService.extractObject(response);
+    final url = data['pdf_url']?.toString();
+    if (url == null || url.isEmpty) {
+      throw Exception('PDF URL not available');
+    }
+
+    final isExternal =
+        (url.startsWith('http://') || url.startsWith('https://')) &&
+            !url.startsWith(ApiConstants.baseUrl);
+    // Presigned S3 URLs already carry their own credentials, so use a bare
+    // Dio without the API's Authorization header. Backend-hosted URLs go
+    // through the shared client so they pick up the base URL + auth.
+    final client = isExternal ? Dio() : _apiService.dio;
+    final resp = await client.get<List<int>>(
+      url,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = Uint8List.fromList(resp.data ?? <int>[]);
+
+    return DownloadHelper.save(
+      filename: 'action-plan-$planId.pdf',
+      bytes: bytes,
+      mimeType: 'application/pdf',
+    );
   }
 }
