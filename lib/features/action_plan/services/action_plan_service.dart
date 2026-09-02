@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -134,18 +135,33 @@ class ActionPlanService {
       throw Exception('PDF URL not available');
     }
 
-    final isExternal =
-        (url.startsWith('http://') || url.startsWith('https://')) &&
-            !url.startsWith(ApiConstants.baseUrl);
-    // Presigned S3 URLs already carry their own credentials, so use a bare
-    // Dio without the API's Authorization header. Backend-hosted URLs go
-    // through the shared client so they pick up the base URL + auth.
-    final client = isExternal ? Dio() : _apiService.dio;
-    final resp = await client.get<List<int>>(
-      url,
-      options: Options(responseType: ResponseType.bytes),
-    );
-    final bytes = Uint8List.fromList(resp.data ?? <int>[]);
+    // Three URL shapes possible from the API depending on env:
+    //  - S3 presigned (external https://…amazonaws.com/…)
+    //  - backend-hosted (relative / same-origin as API baseUrl)
+    //  - data:application/pdf;base64,… when AWS_S3_BUCKET isn't set —
+    //    dio.get() over a data URL fails, so decode the base64 payload
+    //    inline and skip the HTTP fetch entirely.
+    Uint8List bytes;
+    if (url.startsWith('data:')) {
+      final commaIdx = url.indexOf(',');
+      if (commaIdx < 0) {
+        throw Exception('Malformed data URL for PDF');
+      }
+      bytes = base64Decode(url.substring(commaIdx + 1));
+    } else {
+      final isExternal =
+          (url.startsWith('http://') || url.startsWith('https://')) &&
+              !url.startsWith(ApiConstants.baseUrl);
+      // Presigned S3 URLs already carry their own credentials, so use a bare
+      // Dio without the API's Authorization header. Backend-hosted URLs go
+      // through the shared client so they pick up the base URL + auth.
+      final client = isExternal ? Dio() : _apiService.dio;
+      final resp = await client.get<List<int>>(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      bytes = Uint8List.fromList(resp.data ?? <int>[]);
+    }
 
     return DownloadHelper.save(
       filename: 'action-plan-$planId.pdf',
