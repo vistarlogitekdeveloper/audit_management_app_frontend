@@ -239,12 +239,22 @@ class _AuditReportScreenState extends ConsumerState<AuditReportScreen> {
                 icon: Icons.download_rounded,
                 variant: AppButtonVariant.ghost,
                 onPressed: () async {
-                  final path = await ref
+                  final result = await ref
                       .read(reportServiceProvider)
                       .downloadReportPDF(widget.auditId);
-                  setState(() => _pdfPath = path);
+                  // savedPath is null on web (the browser already saved the
+                  // file straight into Downloads); on native it's a temp
+                  // file path we can preview inline with PDFView.
+                  if (result.savedPath != null) {
+                    setState(() => _pdfPath = result.savedPath);
+                  }
                   if (!context.mounted) return;
-                  AppHelpers.showSuccessSnackbar(context, 'PDF ready for preview.');
+                  AppHelpers.showSuccessSnackbar(
+                    context,
+                    result.savedPath != null
+                        ? 'PDF ready for preview.'
+                        : 'PDF downloaded.',
+                  );
                 },
               ),
               AppButton(
