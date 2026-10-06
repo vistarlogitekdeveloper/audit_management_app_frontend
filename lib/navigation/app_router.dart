@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -32,13 +33,36 @@ import '../features/report/screens/auditor_reports_screen.dart';
 import '../features/review/screens/owner_review_screen.dart';
 import '../features/users/screens/users_screen.dart';
 import '../features/auth/providers/auth_provider.dart';
+import '../core/telemetry/telemetry.dart';
 import 'main_scaffold.dart';
+
+/// Reports each screen the router shows to usage analytics (by route
+/// pattern; see Telemetry.screen). The listener goes with the router instance
+/// it was added to.
+GoRouter _withScreenViews(Ref ref, GoRouter router) {
+  if (!Telemetry.enabled) return router;
+  // The delegate, not the route-information provider: it also hears the
+  // location changes a redirect makes (sign-in landing on a dashboard).
+  void report() {
+    try {
+      Telemetry.screen(router.routerDelegate.currentConfiguration.uri.toString());
+    } catch (_) {
+      // No configuration yet; the next change reports.
+    }
+  }
+
+  router.routerDelegate.addListener(report);
+  ref.onDispose(() => router.routerDelegate.removeListener(report));
+  // The listener only hears changes: report the starting screen too.
+  WidgetsBinding.instance.addPostFrameCallback((_) => report());
+  return router;
+}
 
 final goRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
   final navigatorKey = ref.watch(appNavigatorKeyProvider);
 
-  return GoRouter(
+  return _withScreenViews(ref, GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: '/login',
     refreshListenable: auth,
@@ -230,5 +254,5 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
     ],
-  );
+  ));
 });
