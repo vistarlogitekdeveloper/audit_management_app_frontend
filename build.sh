@@ -25,8 +25,23 @@ flutter --version
 flutter config --enable-web
 flutter pub get
 
-# 3. Produce the static bundle. `--base-href /` so go_router's deep links
+# 3. Usage analytics (lib/core/telemetry/telemetry.dart). On only when BOTH
+#    build variables are set: ET_APP_ID (audit_app) and ET_WRITE_KEY
+#    (encrypted), under Settings -> Build -> Variables and secrets. Either
+#    missing: no define is passed and the app sends nothing, exactly as
+#    before. ET_BASE_URL is optional (events go to the API host by default).
+#    Never echo the key.
+DART_DEFINES=()
+if [ -n "${ET_APP_ID:-}" ] && [ -n "${ET_WRITE_KEY:-}" ]; then
+  DART_DEFINES+=(--dart-define=ET_APP_ID="${ET_APP_ID}" --dart-define=ET_WRITE_KEY="${ET_WRITE_KEY}")
+  [ -n "${ET_BASE_URL:-}" ] && DART_DEFINES+=(--dart-define=ET_BASE_URL="${ET_BASE_URL}")
+  echo ">> Usage analytics on, as ${ET_APP_ID}"
+else
+  echo ">> Usage analytics off (ET_APP_ID / ET_WRITE_KEY not set)"
+fi
+
+# 4. Produce the static bundle. `--base-href /` so go_router's deep links
 #    resolve correctly when served at the domain root.
-flutter build web --release --base-href /
+flutter build web --release --base-href / "${DART_DEFINES[@]+"${DART_DEFINES[@]}"}"
 
 echo "✓ build/web/ ready for deploy"

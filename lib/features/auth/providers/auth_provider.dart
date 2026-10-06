@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/telemetry/telemetry.dart';
 import '../../action_plan/providers/action_plan_provider.dart';
 import '../../action_plan_tracker/providers/action_plan_tracker_provider.dart';
 import '../../audit_plan/providers/audit_plan_provider.dart';
@@ -75,6 +76,8 @@ class AuthProvider extends ChangeNotifier {
   /// requests won't trigger a notify storm.
   void handleUnauthorized() {
     if (currentUser == null) return;
+    // An expired session is a sign-out too (not awaited).
+    Telemetry.signedOut();
     currentUser = null;
     _invalidateSessionCaches();
     notifyListeners();
@@ -82,6 +85,8 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> restoreSession() async {
     currentUser = _service.restoreUser();
+    // Before notifying, so the screen it leads to is already theirs.
+    _identify(currentUser);
     if (currentUser != null) _invalidateSessionCaches();
     notifyListeners();
   }
@@ -105,6 +110,8 @@ class AuthProvider extends ChangeNotifier {
         role: role,
       );
       if (!result.requiresRoleSelection) {
+        // Before the state change, so the screen it leads to is already theirs.
+        _identify(result.user);
         currentUser = result.user;
         // Synchronously, before the finally-block's notifyListeners fires
         // the navigation cascade — guarantees the new dashboard mounts on
@@ -118,7 +125,14 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Usage analytics: who this is (id and role only). Fire and forget.
+  void _identify(UserModel? user) {
+    if (user != null) Telemetry.signedIn(userId: user.id, role: user.role);
+  }
+
   Future<void> logout() async {
+    // Not awaited: sign-out never waits for analytics.
+    Telemetry.signedOut();
     isLoading = true;
     notifyListeners();
     try {

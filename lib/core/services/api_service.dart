@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/api_constants.dart';
 import '../constants/app_constants.dart';
+import '../telemetry/telemetry.dart';
 import '../utils/helpers.dart';
 import 'multipart_dispatcher.dart';
 
@@ -85,6 +86,9 @@ class ApiService {
         },
       ),
     );
+    // Usage analytics: named actions and failed calls. Changes nothing about
+    // the request or its handling (core/telemetry/telemetry.dart).
+    dio.interceptors.add(TelemetryInterceptor());
   }
 
   final Ref ref;
@@ -183,8 +187,11 @@ class ApiService {
         headers: headers,
       );
     } catch (error) {
+      Telemetry.upload(path, null);
       throw ApiException(message: 'Upload transport error: $error');
     }
+    // Usage analytics for uploads, which bypass Dio (core/telemetry).
+    Telemetry.upload(path, response.statusCode);
 
     if (!response.isSuccess) {
       String message = 'Request failed (HTTP ${response.statusCode}).';
